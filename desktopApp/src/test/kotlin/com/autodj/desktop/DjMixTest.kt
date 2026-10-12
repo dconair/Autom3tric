@@ -9,6 +9,7 @@ import com.autodj.app.dj.TransitionChoice
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
+import com.autodj.app.ui.dj.DecksScreen
 import com.autodj.app.ui.dj.MixScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -232,6 +233,71 @@ class DjMixTest {
             Thread.sleep(1)
         }
         shot(dj, "mix_playing", 1180, 760)
+        dj.mix.stop()
+        await("stopped") { dj.mix.state == MixState.Idle }
+    }
+
+    @OptIn(ExperimentalComposeUiApi::class)
+    private fun shotDecks(dj: DjController, name: String, width: Int, height: Int) {
+        val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { DecksScreen(dj, onGoToLibrary = {}) }
+        try {
+            val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+            val out = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
+            File(out, "$name.png").writeBytes(bytes)
+            assertTrue(bytes.size > 8_000, "render of $name looks blank")
+        } finally {
+            scene.close()
+        }
+    }
+
+    @Test fun decksLoadPlayAndSync() {
+        val dj = controller().demoLibrary()
+        shotDecks(dj, "decks_empty", 1180, 800)
+        dj.decks.load(0, dj.tracks[0])
+        dj.decks.load(1, dj.tracks[1])
+        await("both decks loaded") { dj.decks.deck[0].item != null && dj.decks.deck[1].item != null }
+        val out = FloatArray(4800 * 2)
+        fun pump(blocks: Int) {
+            repeat(blocks) {
+                engine.renderOffline(4800, out)
+                dj.poll()
+            }
+        }
+        pump(2)
+        assertTrue(dj.snapshot.deck[0].loaded && dj.snapshot.deck[1].loaded)
+        dj.decks.set(1, "sync", 1f)
+        dj.decks.playPause(0)
+        pump(3)
+        dj.decks.playPause(1)
+        pump(40)  // 4 s
+        val a = dj.snapshot.deck[0]
+        val b = dj.snapshot.deck[1]
+        println("deck A ${a.bpm} bpm pos ${a.posSec} phase ${a.beatPhase} | deck B ${b.bpm} bpm pos ${b.posSec} phase ${b.beatPhase}")
+        assertTrue(a.playing && b.playing)
+        assertEquals(a.bpm, b.bpm, 0.2, "deck B follows deck A's tempo")
+        val dphase = (a.beatPhase - b.beatPhase).let { it - Math.round(it) }
+        assertTrue(abs(dphase) < 0.05, "beats are aligned: $dphase")
+        dj.decks.set(0, "eq_low_db", -26f)
+        dj.decks.set(0, "volume", 0.7f)
+        dj.decks.set(-1, "crossfader", -0.4f)
+        pump(10)
+        shotDecks(dj, "decks_playing", 1180, 800)
+        shotDecks(dj, "decks_phone", 412, 900)
+        dj.decks.cue(0)
+        pump(5)
+        assertTrue(!dj.snapshot.deck[0].playing)
+        assertTrue(dj.snapshot.deck[0].posSec < 5.0, "cue returns to the start (first bar)")
+        dj.decks.eject(1)
+        pump(3)
+        assertTrue(!dj.snapshot.deck[1].loaded)
+        await("deck state follows") { dj.decks.deck[1].item == null }
+        // the auto mix takes the decks: loading is refused meanwhile
+        dj.mix.addAll()
+        await("plan") { dj.mix.plan != null }
+        dj.mix.start(0)
+        await("playing") { dj.mix.state == MixState.Playing }
+        dj.decks.load(1, dj.tracks[2])
+        assertTrue(dj.decks.error != null, "manual loading is refused while the auto mix runs")
         dj.mix.stop()
         await("stopped") { dj.mix.state == MixState.Idle }
     }

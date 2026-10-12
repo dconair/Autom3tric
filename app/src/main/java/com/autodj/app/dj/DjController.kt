@@ -50,6 +50,9 @@ class DjController(
     /** The automatic mix: list, plan, playback, export. */
     val mix = MixController(this, engine, scope, io, ui)
 
+    /** The two decks of the manual mixer. */
+    val decks = DeckController(this, engine, scope, io, ui)
+
     /** What the audio thread reported last (decks and mix); refreshed by [poll]. */
     var snapshot by mutableStateOf(DjSnapshot.EMPTY)
         private set
@@ -58,14 +61,22 @@ class DjController(
     fun poll() {
         engine.pollDj()?.let {
             snapshot = it
+            decks.onStatus(it)
             mix.onStatus(it)
         }
     }
 
     private val queue = Channel<String>(Channel.UNLIMITED)
 
+    /**
+     * The same rows as [tracks], readable from any thread: a Compose state list must not be iterated while the UI thread writes
+     * to it (ConcurrentModificationException), and the importer and the mix controller look rows up from worker threads.
+     */
+    private val byId = java.util.concurrent.ConcurrentHashMap<String, TrackItem>()
+
     init {
         tracks.addAll(store.load())
+        for (t in tracks) byId[t.id] = t
         scope.launch(io) {
             for (id in queue) process(id)
         }
@@ -80,6 +91,7 @@ class DjController(
             if (tracks.any { it.source == src }) continue
             val item = TrackItem(id = UUID.randomUUID().toString(), name = if (src.startsWith(TrackItem.DEMO_PREFIX)) "Demo-Song ${(src.removePrefix(TrackItem.DEMO_PREFIX).toIntOrNull() ?: 0) + 1}" else decoder.displayName(src), source = src, addedAt = clock())
             tracks.add(item)
+            byId[item.id] = item
             queue.trySend(item.id)
             added++
         }
@@ -92,13 +104,15 @@ class DjController(
     fun remove(id: String) {
         mix.onLibraryRemoved(id)
         tracks.removeAll { it.id == id }
+        byId.remove(id)
         persist()
     }
 
-    fun item(id: String): TrackItem? = tracks.firstOrNull { it.id == id }
+    /** A library row by id; safe to call from any thread. */
+    fun item(id: String): TrackItem? = byId[id]
 
     /** True while any import is still decoding or analysing. */
-    val busy: Boolean get() = tracks.any { it.status == TrackStatus.Queued || it.status == TrackStatus.Decoding || it.status == TrackStatus.Analysing }
+    val busy: Boolean get() = byId.values.any { it.status == TrackStatus.Queued || it.status == TrackStatus.Decoding || it.status == TrackStatus.Analysing }
 
     // ---- use of a track by the engine -----------------------------------------------------------
 
@@ -169,7 +183,7 @@ class DjController(
     // ---- import pipeline ------------------------------------------------------------------------
 
     private suspend fun process(id: String) {
-        val item = tracks.firstOrNull { it.id == id } ?: return  // removed while queued
+        val item = byId[id] ?: return  // removed while queued
         try {
             update(id) { it.copy(status = TrackStatus.Decoding, progress = -1f, error = null) }
             val json = if (item.isDemo) {
@@ -196,17 +210,23 @@ class DjController(
     private suspend fun update(id: String, f: (TrackItem) -> TrackItem) {
         withContext(ui) {
             val i = tracks.indexOfFirst { it.id == id }
-            if (i >= 0) tracks[i] = f(tracks[i])
+            if (i >= 0) {
+                val next = f(tracks[i])
+                tracks[i] = next
+                byId[id] = next
+            }
         }
     }
 
     private fun persist() {
-        val snapshot = tracks.toList()
-        scope.launch(io) {
-            try {
-                store.save(snapshot)
-            } catch (_: Exception) {
-                // a full disk must not break the session
+        scope.launch(ui) {
+            val snapshot = tracks.toList()  // read on the thread that writes the list
+            withContext(io) {
+                try {
+                    store.save(snapshot)
+                } catch (_: Exception) {
+                    // a full disk must not break the session
+                }
             }
         }
     }

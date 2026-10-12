@@ -88,6 +88,7 @@ class Deck {
   double wantStart_ = -1.0;   // pending start position in frames, < 0 = none
   bool ended_ = false;
   double pausedAt_ = 0.0;     // heard position (frames) while not streaming
+  double restAt_ = -1.0;      // a seek that arrived while the pause was fading out: where the deck rests afterwards, < 0 = none
   std::int64_t cursor_ = 0;   // next source frame handed to the stretcher
   double cursorExact_ = 0.0;
   double lastRate_ = 1.0;

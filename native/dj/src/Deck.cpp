@@ -45,6 +45,7 @@ void Deck::setTrack(const Track* t, double startSec) noexcept {
   streaming_ = false;
   stopRequested_ = false;
   wantStart_ = -1.0;
+  restAt_ = -1.0;
   ended_ = false;
   pausedAt_ = std::max(0.0, startSec) * sr_;
   fadeGain_ = 1.f;
@@ -55,11 +56,13 @@ void Deck::play(double fromSec) noexcept {
   if (!track_) return;
   ended_ = false;
   stopRequested_ = false;
+  restAt_ = -1.0;
   wantStart_ = std::clamp(fromSec * sr_, 0.0, static_cast<double>(track_->audio->frames()));
 }
 
 void Deck::pause() noexcept {
   wantStart_ = -1.0;
+  restAt_ = -1.0;
   if (streaming_) stopRequested_ = true;
 }
 
@@ -67,6 +70,10 @@ void Deck::seek(double sec) noexcept {
   if (!track_) return;
   const double f = std::clamp(sec * sr_, 0.0, static_cast<double>(track_->audio->frames()));
   ended_ = false;
+  if (stopRequested_) {  // "pause, then jump": rest at the new place once the fade-out is done
+    restAt_ = f;
+    return;
+  }
   if (streaming_ || wantStart_ >= 0.0) {
     wantStart_ = f;
     stopRequested_ = false;
@@ -178,7 +185,8 @@ void Deck::process(float* out, int frames, const DeckBlock& b) noexcept {
   out_.peakR = pr;
 
   if (fadeOut) {
-    pausedAt_ = std::max(0.0, heardFrames());
+    pausedAt_ = restAt_ >= 0.0 ? restAt_ : std::max(0.0, heardFrames());
+    restAt_ = -1.0;
     streaming_ = false;
     stopRequested_ = false;
     (void)kFadeFloor;

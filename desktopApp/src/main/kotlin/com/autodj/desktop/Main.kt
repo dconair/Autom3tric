@@ -24,6 +24,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.autodj.app.dj.DjColors
 import com.autodj.app.ui.AutoDjTheme
 import com.autodj.app.ui.InstrumentScreen
+import com.autodj.app.ui.dj.DecksScreen
 import com.autodj.app.ui.dj.DjTabBar
 import com.autodj.app.ui.dj.LibraryScreen
 import com.autodj.app.ui.dj.MixScreen
@@ -32,7 +33,7 @@ import java.awt.FileDialog
 import java.io.File
 import java.util.Locale
 
-private val Tabs = listOf("Bibliothek", "Auto-Mix", "Granular")
+private val Tabs = listOf("Bibliothek", "Auto-Mix", "Decks", "Granular")
 
 fun main() = application {
     val host = remember {
@@ -91,11 +92,15 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                         host.dj.sendToGranular(item) { slot, error ->
                             if (slot != null) {
                                 host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
-                                tab = 2
+                                tab = 3
                             } else {
                                 host.report(error ?: "Konnte den Song nicht laden")
                             }
                         }
+                    },
+                    onLoadDeck = { item, deck ->
+                        host.dj.decks.load(deck, item)
+                        tab = 2
                     },
                     onQueue = { item -> host.dj.mix.add(item.id) },
                     isQueued = { item -> host.dj.mix.contains(item.id) },
@@ -105,6 +110,7 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                     onGoToLibrary = { tab = 0 },
                     onExport = { bits -> pickExportFile()?.let { host.dj.mix.export(it, bits) } },
                 )
+                2 -> DecksScreen(host.dj, onGoToLibrary = { tab = 0 })
                 else -> InstrumentScreen(host)
             }
         }

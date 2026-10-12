@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.AutoDjViewModel
+import com.autodj.app.ui.dj.DecksScreen
 import com.autodj.app.ui.dj.LibraryScreen
 import com.autodj.app.ui.dj.MixScreen
 import java.util.Locale
@@ -39,10 +40,9 @@ import java.util.Locale
 private enum class Tab(val label: String, val glyph: String) {
     Library("Bibliothek", "≣"),
     Mix("Auto-Mix", "⇄"),
+    Decks("Decks", "◉"),
     Granular("Granular", "◌"),
-    Params("Params", "≡"),
-    Transport("Transport", "♪"),
-    Debug("Debug", "⚙"),
+    Debug("Entwickler", "⚙"),
 }
 
 @Composable
@@ -70,14 +70,38 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits
                     vm.dj,
                     onPickFiles = onPickFiles,
                     onGranular = { item -> vm.sendToGranular(item) { ok -> if (ok) tab = Tab.Granular.ordinal } },
+                    onLoadDeck = { item, deck ->
+                        vm.dj.decks.load(deck, item)
+                        tab = Tab.Decks.ordinal
+                    },
                     onQueue = { item -> vm.dj.mix.add(item.id) },
                     isQueued = { item -> vm.dj.mix.contains(item.id) },
                 )
+                Tab.Decks -> DecksScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal })
                 Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
                 Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })
-                Tab.Params -> GranularScreen(vm)
-                Tab.Transport -> TransportScreen(vm)
-                Tab.Debug -> DebugScreen(vm)
+                Tab.Debug -> DeveloperTools(vm)
+            }
+        }
+    }
+}
+
+/** The early engine screens (all parameters, transport) and the debug page, behind one tab. */
+@Composable
+private fun DeveloperTools(vm: AutoDjViewModel) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+    val pages = listOf("Debug", "Parameter", "Transport")
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            pages.forEachIndexed { i, label ->
+                if (i == page) Button(onClick = { page = i }) { Text(label) } else TextButton(onClick = { page = i }) { Text(label) }
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when (page) {
+                0 -> DebugScreen(vm)
+                1 -> GranularScreen(vm)
+                else -> TransportScreen(vm)
             }
         }
     }

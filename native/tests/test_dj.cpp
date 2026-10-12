@@ -317,6 +317,23 @@ TEST(Deck, PauseSeekAndEndOfTrack) {
   EXPECT_EQ(rig.e->heldTrackCount(), 0u);
 }
 
+TEST(Deck, PauseFollowedByASeekRestsAtTheNewPlace) {
+  DeckRig rig;
+  rig.e->deckLoad(0, songTrack(124.0, 0.0, 1));
+  rig.e->deckPlay(0, true);
+  rig.run(1.0);
+  ASSERT_TRUE(rig.status().deck[0].playing);
+  rig.e->deckPlay(0, false);
+  rig.e->deckSeek(0, 20.0);  // both arrive before the audio thread has faded the deck out
+  rig.run(0.5);
+  const auto st = rig.status();
+  EXPECT_FALSE(st.deck[0].playing) << "the seek must not undo the pause";
+  EXPECT_NEAR(st.deck[0].posSec, 20.0, 0.01);
+  rig.e->deckPlay(0, true);
+  rig.run(0.5);
+  EXPECT_NEAR(rig.status().deck[0].posSec, 20.5, 0.1);
+}
+
 TEST(Deck, CrossfaderCurvesAndMixerControls) {
   DeckRig rig;
   rig.e->deckLoad(0, sineTrack(440.0, 20.0, 1));
