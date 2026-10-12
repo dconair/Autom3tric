@@ -88,6 +88,7 @@ class DesktopHost(libraryFile: File = defaultLibraryFile(), decoder: DesktopTrac
     }
 
     fun poll() {
+        dj.poll()
         engine.pollStatus()?.let { status = it }
         engine.pollViz()?.let { vizState = it }
         if (tick % 15 == 0) driver = engine.driverInfo()

@@ -63,6 +63,7 @@ void DjNode::finishPlan() noexcept {
   for (int d = 0; d < 2; ++d) {
     if (!owned_[d]) decks_[d].setTrack(nullptr);
     active_[d] = -1;
+    waiting_[d] = -1;
   }
   finished_ = true;
 }
@@ -115,6 +116,7 @@ bool DjNode::handleCommand(const Command& cmd, GarbageQueue& garbage) noexcept {
       tSec_ = 0.0;
       nextItem_ = 0;
       active_[0] = active_[1] = -1;
+      waiting_[0] = waiting_[1] = -1;
       lastStarted_ = -1;
       for (DeckCtl& c : ctl_) c = DeckCtl{};
       return true;
@@ -259,15 +261,28 @@ void DjNode::processLive(ProcessIO& io) noexcept {
 // plan mode
 // ------------------------------------------------------------------------------------------------------
 
+void DjNode::launchItem(int index, double beat) noexcept {
+  const PlanItem& it = plan_->items[index];
+  const Track* t = plan_->audioOf(index);
+  Deck& dk = decks_[it.deck];
+  dk.setTrack(t, 0.0);
+  owned_[it.deck] = false;
+  dk.play(it.secOfTrackBeat(it.trackBeatAt(beat)));
+  active_[it.deck] = index;
+  waiting_[it.deck] = -1;
+  ctl_[it.deck] = DeckCtl{};  // first block of the song starts at its lane values, no ramp from the previous song's settings
+}
+
 void DjNode::startItem(int index) noexcept {
   const PlanItem& it = plan_->items[index];
-  Deck& dk = decks_[it.deck];
-  dk.setTrack(it.track.get(), 0.0);
-  owned_[it.deck] = false;
-  dk.play(it.secOfTrackBeat(it.trackBeat0));
-  active_[it.deck] = index;
   lastStarted_ = index;
-  ctl_[it.deck] = DeckCtl{};  // first block of the song starts at its lane values, no ramp from the previous song's settings
+  if (plan_->audioOf(index) == nullptr) {  // decoding is late: stay silent on this deck and join in when the audio arrives
+    decks_[it.deck].setTrack(nullptr, 0.0);
+    active_[it.deck] = -1;
+    waiting_[it.deck] = index;
+    return;
+  }
+  launchItem(index, it.startBeat);
 }
 
 void DjNode::fireDue() noexcept {
@@ -279,9 +294,18 @@ void DjNode::fireDue() noexcept {
       active_[d] = -1;
     }
   }
+  for (int d = 0; d < 2; ++d) {
+    const int w = waiting_[d];
+    if (w < 0) continue;
+    if (P.items[w].endBeat - 1.0 <= m_) {
+      waiting_[d] = -1;  // too late to join, the slot is over
+    } else if (P.audioOf(w) != nullptr) {
+      launchItem(w, m_);
+    }
+  }
   const int count = static_cast<int>(P.items.size());
   while (nextItem_ < count && P.items[nextItem_].startBeat <= m_ + kEps) startItem(nextItem_++);
-  if (m_ >= P.totalBeats - kEps || (nextItem_ >= count && active_[0] < 0 && active_[1] < 0)) finishPlan();
+  if (m_ >= P.totalBeats - kEps || (nextItem_ >= count && active_[0] < 0 && active_[1] < 0 && waiting_[0] < 0 && waiting_[1] < 0)) finishPlan();
 }
 
 void DjNode::renderPlanBlock(float* out, int n, double m0, double m1) noexcept {
@@ -381,6 +405,7 @@ void DjNode::fillStatus(DjStatus& out) noexcept {
     p.active = finished_ ? 0 : 1;
     p.finished = finished_ ? 1 : 0;
     p.item = lastStarted_;
+    p.waiting = waiting_[0] >= 0 ? waiting_[0] : waiting_[1];
     p.timeSec = tSec_;
     p.totalSec = plan_->totalSec;
     p.beat = m_;

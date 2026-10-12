@@ -93,6 +93,7 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
             while (isActive) {
                 delay(if (uiVisible) 33L else 500L)
                 if (!uiVisible) continue
+                dj.poll()
                 engine.pollStatus()?.let { status = it }
                 engine.pollViz()?.let { viz = it }
                 if (tick % 15 == 0) driver = engine.driverInfo()

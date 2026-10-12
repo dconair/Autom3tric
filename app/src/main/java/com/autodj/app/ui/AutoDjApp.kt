@@ -33,10 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.AutoDjViewModel
 import com.autodj.app.ui.dj.LibraryScreen
+import com.autodj.app.ui.dj.MixScreen
 import java.util.Locale
 
 private enum class Tab(val label: String, val glyph: String) {
     Library("Bibliothek", "≣"),
+    Mix("Auto-Mix", "⇄"),
     Granular("Granular", "◌"),
     Params("Params", "≡"),
     Transport("Transport", "♪"),
@@ -44,7 +46,7 @@ private enum class Tab(val label: String, val glyph: String) {
 }
 
 @Composable
-fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}) {
+fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits: Int) -> Unit = {}) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -68,7 +70,10 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}) {
                     vm.dj,
                     onPickFiles = onPickFiles,
                     onGranular = { item -> vm.sendToGranular(item) { ok -> if (ok) tab = Tab.Granular.ordinal } },
+                    onQueue = { item -> vm.dj.mix.add(item.id) },
+                    isQueued = { item -> vm.dj.mix.contains(item.id) },
                 )
+                Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
                 Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })
                 Tab.Params -> GranularScreen(vm)
                 Tab.Transport -> TransportScreen(vm)

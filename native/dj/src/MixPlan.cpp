@@ -34,6 +34,40 @@ double segmentSeconds(double x0, double x1, double u0, double u1) noexcept {
 
 }  // namespace
 
+void MixPlan::initAudio() {
+  std::lock_guard<std::mutex> lk(audio.mutex);
+  audio.count = items.size();
+  audio.owner.assign(items.size(), nullptr);
+  audio.ptr.reset(new std::atomic<const Track*>[items.size() ? items.size() : 1]);
+  for (std::size_t i = 0; i < items.size(); ++i) {
+    const bool has = items[i].track && items[i].track->audio;
+    if (has) audio.owner[i] = items[i].track;
+    audio.ptr[i].store(has ? items[i].track.get() : nullptr, std::memory_order_release);
+  }
+}
+
+bool MixPlan::bindAudio(int item, std::shared_ptr<const Track> track) const {
+  if (!track || !track->audio || item < 0 || static_cast<std::size_t>(item) >= audio.count) return false;
+  std::lock_guard<std::mutex> lk(audio.mutex);
+  const Track* raw = track.get();
+  std::shared_ptr<const Track> old = std::move(audio.owner[static_cast<std::size_t>(item)]);
+  audio.owner[static_cast<std::size_t>(item)] = std::move(track);
+  audio.ptr[static_cast<std::size_t>(item)].store(raw, std::memory_order_release);
+  return true;  // `old` is freed here, after the pointer was swapped
+}
+
+void MixPlan::unbindAudio(int item) const {
+  if (item < 0 || static_cast<std::size_t>(item) >= audio.count) return;
+  std::shared_ptr<const Track> old;
+  {
+    std::lock_guard<std::mutex> lk(audio.mutex);
+    audio.ptr[static_cast<std::size_t>(item)].store(nullptr, std::memory_order_release);
+    old = std::move(audio.owner[static_cast<std::size_t>(item)]);
+  }
+}
+
+bool MixPlan::audioBound(int item) const noexcept { return audioOf(item) != nullptr; }
+
 double MixPlan::bpmAt(double beat) const noexcept {
   if (tempo.empty()) return 120.0;
   if (beat <= tempo.front().beat) return tempo.front().bpm;

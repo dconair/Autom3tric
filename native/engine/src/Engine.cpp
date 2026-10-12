@@ -167,6 +167,17 @@ int Engine::addTrack(std::shared_ptr<const SampleBuffer> audio, const std::strin
   return id;
 }
 
+int Engine::addTrackStub(const std::string& name, const analysis::TrackAnalysis& a) {
+  auto t = std::make_shared<Track>();
+  t->name = name;
+  t->analysis = a;
+  std::lock_guard<std::mutex> lk(trackMutex_);
+  t->id = nextTrackId_++;
+  const int id = t->id;
+  tracks_[id] = std::move(t);
+  return id;
+}
+
 std::shared_ptr<const Track> Engine::track(int id) const {
   std::lock_guard<std::mutex> lk(trackMutex_);
   auto it = tracks_.find(id);
@@ -229,6 +240,20 @@ std::shared_ptr<const dj::MixPlan> Engine::planMix(const std::vector<int>& track
     if (auto t = track(id)) list.push_back(std::move(t));
   }
   return dj::planMix(list, options);
+}
+
+std::vector<int> Engine::orderTracks(const std::vector<int>& trackIds, dj::OrderMode mode) const {
+  std::vector<std::shared_ptr<const Track>> list;
+  std::vector<int> origin;
+  for (std::size_t i = 0; i < trackIds.size(); ++i) {
+    if (auto t = track(trackIds[i])) {
+      list.push_back(std::move(t));
+      origin.push_back(static_cast<int>(i));
+    }
+  }
+  std::vector<int> out;
+  for (int k : dj::orderTracks(list, mode)) out.push_back(origin[static_cast<std::size_t>(k)]);
+  return out;
 }
 
 bool Engine::planStart(std::shared_ptr<const dj::MixPlan> plan) {

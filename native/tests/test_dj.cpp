@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <functional>
 #include <numeric>
 
@@ -10,6 +12,7 @@
 #include "autodj/dj/DjDsp.h"
 #include "autodj/dj/MixPlan.h"
 #include "autodj/engine/Engine.h"
+#include "autodj/engine/MixExport.h"
 #include "test_util.h"
 
 using namespace autodj;
@@ -633,4 +636,172 @@ TEST(Deck, CpuCostOfTwoStretchedDecks) {
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   printf("two stretched decks: %.1f%% of one core on this host (realtime factor %.1fx)\n", 100.0 * wall / 20.0, 20.0 / wall);
   EXPECT_LT(wall / 20.0, 0.35);
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// audio bound lazily to a plan, and the offline export
+// ------------------------------------------------------------------------------------------------------------------
+
+namespace {
+std::shared_ptr<Track> stubOf(const Track& t) {
+  auto s = std::make_shared<Track>();
+  s->id = t.id;
+  s->name = t.name;
+  s->analysis = t.analysis;  // no audio
+  return s;
+}
+}  // namespace
+
+TEST(LazyAudio, PlanFromStubsSoundsLikeThePlanFromFullTracks) {
+  std::vector<std::shared_ptr<Track>> songs = {songTrack(122.0, 0.0, 1, 57, true, "8A", 4, 8, 4, 4), songTrack(124.0, 0.1, 2, 52, true, "9A", 4, 8, 4, 4),
+                                               songTrack(126.0, 0.0, 3, 57, true, "8A", 4, 8, 4, 4)};
+  auto full = planMix({songs[0], songs[1], songs[2]}, {});
+  std::vector<std::shared_ptr<const Track>> stubs;
+  for (auto& s : songs) stubs.push_back(stubOf(*s));
+  auto lazy = planMix(stubs, {});
+  ASSERT_EQ(lazy->items.size(), 3u);
+  EXPECT_NEAR(lazy->totalSec, full->totalSec, 1e-9) << "the plan needs the analysis only";
+  for (int i = 0; i < 3; ++i) EXPECT_FALSE(lazy->audioBound(i));
+  for (int i = 0; i < 3; ++i) EXPECT_TRUE(full->audioBound(i));
+  for (int i = 0; i < 3; ++i) ASSERT_TRUE(lazy->bindAudio(i, songs[static_cast<std::size_t>(i)]));
+  EXPECT_FALSE(lazy->bindAudio(1, stubs[1])) << "a stub has no audio to bind";
+  const auto a = renderPlan(full, full->totalSec + 1.0, -1, 192);
+  const auto b = renderPlan(lazy, full->totalSec + 1.0, -1, 192);
+  ASSERT_EQ(a.size(), b.size());
+  std::size_t diff = 0;
+  for (std::size_t i = 0; i < a.size(); ++i) diff += a[i] != b[i];
+  EXPECT_EQ(diff, 0u);
+}
+
+TEST(LazyAudio, ASongBoundLateJoinsInAtTheRightPositionAndNothingBreaks) {
+  auto A = songTrack(124.0, 0.0, 1, 57, true, "8A", 4, 8, 4, 4);
+  auto B = songTrack(124.0, 0.0, 2, 52, true, "9A", 4, 8, 4, 4);
+  auto plan = planMix({stubOf(*A), stubOf(*B)}, {});
+  ASSERT_EQ(plan->transitions.size(), 1u);
+  plan->bindAudio(0, A);
+  EngineConfig cfg;
+  cfg.sampleRate = kSr;
+  cfg.realtime = false;
+  Engine e(cfg);
+  testutil::ViolationCounter counter;
+  e.planStart(plan);
+  const double T = plan->transitions[0].startSec;
+  const int cb = 192;
+  std::vector<float> buf(cb * 2), all;
+  DjStatus st;
+  bool sawWaiting = false;
+  auto run = [&](double untilSec) {
+    while (static_cast<double>(all.size() / 2) / kSr < untilSec) {
+      e.process(buf.data(), cb);
+      all.insert(all.end(), buf.begin(), buf.end());
+      e.readDjStatus(st);
+      sawWaiting = sawWaiting || st.plan.waiting == 1;
+      e.collectGarbage();
+    }
+  };
+  run(T + plan->transitions[0].lengthSec * 0.5);  // B's slot has begun, its audio is missing
+  EXPECT_TRUE(sawWaiting) << "the player reports the song it is waiting for";
+  const std::size_t mid = all.size();
+  plan->bindAudio(1, B);
+  run(T + plan->transitions[0].lengthSec + 4.0);
+  EXPECT_EQ(st.plan.waiting, -1);
+  EXPECT_EQ(st.deck[plan->items[1].deck].trackId, 2) << "song B plays after it arrived";
+  EXPECT_GT(testutil::rms(all, mid, all.size()), 0.02);
+  EXPECT_TRUE(testutil::allFinite(all));
+  EXPECT_EQ(counter.count(), 0u);
+  // handing the audio back after the song ended must be safe
+  plan->unbindAudio(0);
+  e.planStop();
+  e.process(buf.data(), cb);
+  e.collectGarbage();
+}
+
+namespace {
+struct WavData {
+  int rate = 0, bits = 0, channels = 0;
+  std::vector<float> samples;
+};
+bool readWav(const std::string& path, WavData& w) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (f == nullptr) return false;
+  std::vector<std::uint8_t> d;
+  std::uint8_t tmp[4096];
+  std::size_t n;
+  while ((n = std::fread(tmp, 1, sizeof tmp, f)) > 0) d.insert(d.end(), tmp, tmp + n);
+  std::fclose(f);
+  if (d.size() < 44 || std::memcmp(d.data(), "RIFF", 4) != 0 || std::memcmp(d.data() + 8, "WAVE", 4) != 0) return false;
+  auto u32 = [&](std::size_t o) { return static_cast<std::uint32_t>(d[o] | d[o + 1] << 8 | d[o + 2] << 16 | static_cast<std::uint32_t>(d[o + 3]) << 24); };
+  w.channels = d[22] | d[23] << 8;
+  w.rate = static_cast<int>(u32(24));
+  w.bits = d[34] | d[35] << 8;
+  const std::size_t bytes = u32(40);
+  if (44 + bytes > d.size()) return false;
+  const int bp = w.bits / 8;
+  for (std::size_t o = 44; o + static_cast<std::size_t>(bp) <= 44 + bytes; o += static_cast<std::size_t>(bp)) {
+    if (bp == 2) w.samples.push_back(static_cast<float>(static_cast<std::int16_t>(d[o] | d[o + 1] << 8)) / 32768.f);
+    else {
+      std::int32_t v = d[o] | d[o + 1] << 8 | d[o + 2] << 16;
+      if (v & 0x800000) v -= 0x1000000;
+      w.samples.push_back(static_cast<float>(v) / 8388608.f);
+    }
+  }
+  return true;
+}
+}  // namespace
+
+TEST(MixExport, WavMatchesWhatPlaybackWouldHaveSoundedLike) {
+  auto A = songTrack(122.0, 0.0, 1, 57, true, "8A", 4, 8, 4, 4);
+  auto B = songTrack(125.0, 0.1, 2, 52, true, "9A", 4, 8, 4, 4);
+  auto plan = planMix({stubOf(*A), stubOf(*B)}, {});
+  plan->bindAudio(0, A);
+  plan->bindAudio(1, B);
+  const std::string path = ::testing::TempDir() + "export_test.wav";
+  MixExporter ex(plan, kSr, 16);
+  ASSERT_TRUE(ex.open(path));
+  while (ex.step(192 * 25)) {
+  }
+  EXPECT_TRUE(ex.error().empty()) << ex.error();
+  EXPECT_TRUE(ex.close());
+  WavData w;
+  ASSERT_TRUE(readWav(path, w));
+  EXPECT_EQ(w.rate, kSr);
+  EXPECT_EQ(w.channels, 2);
+  EXPECT_EQ(w.bits, 16);
+  EXPECT_NEAR(static_cast<double>(w.samples.size() / 2) / kSr, plan->totalSec, 0.05);
+  auto ref = [&] {
+    auto full = planMix({A, B}, {});
+    return renderPlan(full, full->totalSec, -1, 192);
+  }();
+  const std::size_t n = std::min(ref.size(), w.samples.size());
+  double maxDiff = 0.0;
+  for (std::size_t i = 0; i < n; ++i) maxDiff = std::max(maxDiff, static_cast<double>(std::fabs(ref[i] - w.samples[i])));
+  EXPECT_LT(maxDiff, 3.0 / 32768.0 + 1e-6) << "only 16-bit rounding and dither differ from the live render";
+  EXPECT_GT(ex.peak(), 0.1f);
+  std::remove(path.c_str());
+}
+
+TEST(MixExport, TwentyFourBitAndCancel) {
+  auto A = songTrack(124.0, 0.0, 1, 57, true, "8A", 4, 8, 4, 4);
+  auto plan = planMix({A}, {});
+  const std::string path = ::testing::TempDir() + "export_test24.wav";
+  {
+    MixExporter ex(plan, kSr, 24);
+    ASSERT_TRUE(ex.open(path));
+    while (ex.step(4800)) {
+    }
+    ASSERT_TRUE(ex.close());
+    WavData w;
+    ASSERT_TRUE(readWav(path, w));
+    EXPECT_EQ(w.bits, 24);
+    EXPECT_GT(w.samples.size(), static_cast<std::size_t>(kSr) * 2 * 10);
+  }
+  {
+    MixExporter ex(plan, kSr, 16);
+    ASSERT_TRUE(ex.open(path));
+    ex.step(4800);
+    EXPECT_FALSE(ex.close(true)) << "a cancelled export reports no success";
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    EXPECT_EQ(f, nullptr) << "and leaves no half-written file behind";
+    if (f) std::fclose(f);
+  }
 }

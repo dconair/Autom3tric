@@ -23,6 +23,7 @@ struct PlanStatus {
   std::int32_t finished = 0;
   std::int32_t item = -1;        // item that started last (the one playing "on top")
   std::int32_t transition = -1;  // transition currently running, -1 = none
+  std::int32_t waiting = -1;     // item that is due but whose audio is not bound yet (-1 = none)
   double timeSec = 0.0;
   double totalSec = 0.0;
   double beat = 0.0;

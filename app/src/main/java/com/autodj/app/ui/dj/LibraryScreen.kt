@@ -56,10 +56,11 @@ fun LibraryScreen(
     onLoadDeck: ((TrackItem, Int) -> Unit)? = null,
     onGranular: ((TrackItem) -> Unit)? = null,
     onQueue: ((TrackItem) -> Unit)? = null,
+    isQueued: (TrackItem) -> Boolean = { false },
     footer: String? = null,
 ) = LibraryContent(
     tracks = dj.tracks, onPickFiles = onPickFiles, onDemo = { dj.addDemoTracks() }, onRemove = { dj.remove(it.id) },
-    modifier = modifier, onLoadDeck = onLoadDeck, onGranular = onGranular, onQueue = onQueue, footer = footer,
+    modifier = modifier, onLoadDeck = onLoadDeck, onGranular = onGranular, onQueue = onQueue, isQueued = isQueued, footer = footer,
 )
 
 /** The stateless library list (also what the screenshot tests render). */
@@ -73,6 +74,7 @@ fun LibraryContent(
     onLoadDeck: ((TrackItem, Int) -> Unit)? = null,
     onGranular: ((TrackItem) -> Unit)? = null,
     onQueue: ((TrackItem) -> Unit)? = null,
+    isQueued: (TrackItem) -> Boolean = { false },
     footer: String? = null,
 ) {
     DjTheme {
@@ -102,6 +104,7 @@ fun LibraryContent(
                             onLoadDeck = onLoadDeck?.let { f -> { deck: Int -> f(item, deck) } },
                             onGranular = onGranular?.let { f -> { f(item) } },
                             onQueue = onQueue?.let { f -> { f(item) } },
+                            queued = isQueued(item),
                         )
                     }
                 }
@@ -135,6 +138,7 @@ private fun TrackRow(
     onLoadDeck: ((Int) -> Unit)?,
     onGranular: (() -> Unit)?,
     onQueue: (() -> Unit)?,
+    queued: Boolean,
 ) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DjColors.panel)
@@ -166,7 +170,11 @@ private fun TrackRow(
                     DeckButton("A", DjColors.deckA) { onLoadDeck(0) }
                     DeckButton("B", DjColors.deckB) { onLoadDeck(1) }
                 }
-                if (onQueue != null) TextButton(onClick = onQueue) { Text("In die Mix-Liste", color = DjColors.text) }
+                if (onQueue != null) {
+                    TextButton(onClick = onQueue, enabled = !queued) {
+                        Text(if (queued) "✓ In der Mix-Liste" else "In die Mix-Liste", color = if (queued) DjColors.good else DjColors.text)
+                    }
+                }
                 if (onGranular != null) TextButton(onClick = onGranular) { Text("Granular", color = DjColors.text) }
             }
             Spacer(Modifier.weight(1f))

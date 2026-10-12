@@ -59,6 +59,7 @@ class DjNode final : public Node {
   void renderPlanBlock(float* out, int n, double m0, double m1) noexcept;
   void fireDue() noexcept;
   void startItem(int index) noexcept;
+  void launchItem(int index, double beat) noexcept;
   void finishPlan() noexcept;
   void stopPlan(GarbageQueue& garbage) noexcept;
   void clearManualDecks(GarbageQueue& garbage) noexcept;
@@ -88,6 +89,7 @@ class DjNode final : public Node {
   double tSec_ = 0.0;    // seconds since the plan started
   int nextItem_ = 0;
   int active_[2] = {-1, -1};
+  int waiting_[2] = {-1, -1};  // item due on this deck whose audio is not bound yet: it joins in as soon as it is
   int lastStarted_ = -1;
   GarbageQueue* garbage_ = nullptr;
 };

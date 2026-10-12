@@ -26,12 +26,13 @@ import com.autodj.app.ui.AutoDjTheme
 import com.autodj.app.ui.InstrumentScreen
 import com.autodj.app.ui.dj.DjTabBar
 import com.autodj.app.ui.dj.LibraryScreen
+import com.autodj.app.ui.dj.MixScreen
 import kotlinx.coroutines.delay
 import java.awt.FileDialog
 import java.io.File
 import java.util.Locale
 
-private val Tabs = listOf("Bibliothek", "Granular")
+private val Tabs = listOf("Bibliothek", "Auto-Mix", "Granular")
 
 fun main() = application {
     val host = remember {
@@ -47,6 +48,16 @@ fun main() = application {
     ) {
         AutoDjTheme { DesktopApp(host) }
     }
+}
+
+/** The native "save as" dialog for the exported mix; returns the chosen absolute path or null. */
+private fun FrameWindowScope.pickExportFile(): String? {
+    val dialog = FileDialog(window, "Mix als WAV speichern", FileDialog.SAVE)
+    dialog.file = "AutoDJ-Mix.wav"
+    dialog.isVisible = true
+    val name = dialog.file ?: return null
+    val dir = dialog.directory ?: return null
+    return File(dir, if (name.lowercase().endsWith(".wav")) name else "$name.wav").absolutePath
 }
 
 /** The native "Songs hinzufügen" dialog (multi-select). Blocks until the user is done; returns absolute paths. */
@@ -80,12 +91,19 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                         host.dj.sendToGranular(item) { slot, error ->
                             if (slot != null) {
                                 host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
-                                tab = 1
+                                tab = 2
                             } else {
                                 host.report(error ?: "Konnte den Song nicht laden")
                             }
                         }
                     },
+                    onQueue = { item -> host.dj.mix.add(item.id) },
+                    isQueued = { item -> host.dj.mix.contains(item.id) },
+                )
+                1 -> MixScreen(
+                    host.dj,
+                    onGoToLibrary = { tab = 0 },
+                    onExport = { bits -> pickExportFile()?.let { host.dj.mix.export(it, bits) } },
                 )
                 else -> InstrumentScreen(host)
             }

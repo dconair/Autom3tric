@@ -95,6 +95,8 @@ class Engine {
   /// Control/worker thread; the analysis takes about a second per track, nothing else is blocked meanwhile.
   int addTrack(std::shared_ptr<const SampleBuffer> audio, const std::string& name, const analysis::TrackAnalysis* cached = nullptr,
                const analysis::ProgressFn& progress = {});
+  /// Registers a track that has an analysis but no audio yet (a library entry): enough to plan a mix with, see dj::PlanAudio.
+  int addTrackStub(const std::string& name, const analysis::TrackAnalysis& analysis);
   std::shared_ptr<const Track> track(int id) const;
   void removeTrack(int id);
   std::size_t trackCount() const;
@@ -106,6 +108,8 @@ class Engine {
   bool deckSeek(int deck, double seconds);
   /// Plans a mix of the given tracks in this order (unknown ids are skipped). Pure computation, nothing is started.
   std::shared_ptr<const dj::MixPlan> planMix(const std::vector<int>& trackIds, const dj::PlanOptions& options) const;
+  /// Suggested play order for the given tracks: the result holds indices into `trackIds` (unknown ids are dropped).
+  std::vector<int> orderTracks(const std::vector<int>& trackIds, dj::OrderMode mode) const;
   /// Starts a plan on the decks (stops decks and plans that are running). The engine keeps the plan alive.
   bool planStart(std::shared_ptr<const dj::MixPlan> plan);
   bool planStop();

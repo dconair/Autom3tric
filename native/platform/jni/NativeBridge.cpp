@@ -11,6 +11,7 @@
 #endif
 #include <jni.h>
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -25,6 +26,7 @@
 #include "autodj/core/DemoSources.h"
 #include "autodj/core/RtGuard.h"
 #include "autodj/engine/Engine.h"
+#include "autodj/engine/MixExport.h"
 
 using autodj::Engine;
 using autodj::EngineConfig;
@@ -46,6 +48,11 @@ struct EngineHandle {
   std::mutex ingestMutex;  // guards the map only, never the (long) conversion/analysis
   std::unordered_map<int, std::shared_ptr<IngestJob>> ingests;
   int nextTicket = 1;
+  std::mutex djMutex;  // guards the two maps below (plans are built on worker threads, polled from the UI thread)
+  std::unordered_map<int, std::shared_ptr<const autodj::dj::MixPlan>> plans;
+  std::unordered_map<int, std::unique_ptr<autodj::MixExporter>> exports;
+  int nextPlan = 1;
+  int nextExport = 1;
 };
 
 EngineHandle* H(jlong h) { return reinterpret_cast<EngineHandle*>(h); }
@@ -432,6 +439,156 @@ JFN(jint, nativeRenderOffline)(JNIEnv* env, jclass, jlong h, jint frames, jfloat
   H(h)->engine->process(buf.data(), frames);
   env->SetFloatArrayRegion(out, 0, 2 * frames, buf.data());
   return frames;
+}
+
+// ---- DJ: decks, automatic mix, offline export -------------------------------------------------------------------
+
+/// A library entry without audio: only enough to plan a mix with. Returns the track id, 0 if the analysis JSON is unusable.
+JFN(jint, nativeTrackStub)(JNIEnv* env, jclass, jlong h, jstring name, jstring analysisJson) {
+  autodj::analysis::TrackAnalysis a;
+  const auto parsed = nlohmann::json::parse(fromJString(env, analysisJson), nullptr, false);
+  if (parsed.is_discarded() || !autodj::analysis::fromJson(parsed, a)) return 0;
+  return H(h)->engine->addTrackStub(fromJString(env, name), a);
+}
+
+JFN(jboolean, nativeDeckLoad)(JNIEnv*, jclass, jlong h, jint deck, jint trackId, jdouble startSec) {
+  if (trackId <= 0) return H(h)->engine->deckLoad(deck, nullptr, 0.0) ? JNI_TRUE : JNI_FALSE;
+  auto t = H(h)->engine->track(trackId);
+  if (!t || !t->audio) return JNI_FALSE;
+  return H(h)->engine->deckLoad(deck, std::move(t), startSec) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(jboolean, nativeDeckPlay)(JNIEnv*, jclass, jlong h, jint deck, jboolean play) {
+  return H(h)->engine->deckPlay(deck, play == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(jboolean, nativeDeckSeek)(JNIEnv*, jclass, jlong h, jint deck, jdouble sec) {
+  return H(h)->engine->deckSeek(deck, sec) ? JNI_TRUE : JNI_FALSE;
+}
+
+/// Suggested order: indices into `ids`.
+JFN(jintArray, nativeOrderTracks)(JNIEnv* env, jclass, jlong h, jintArray ids, jint mode) {
+  const jsize n = env->GetArrayLength(ids);
+  std::vector<int> v(static_cast<std::size_t>(n));
+  if (n > 0) env->GetIntArrayRegion(ids, 0, n, v.data());
+  const auto order = H(h)->engine->orderTracks(v, static_cast<autodj::dj::OrderMode>(std::clamp<int>(mode, 0, static_cast<int>(autodj::dj::OrderMode::kCount) - 1)));
+  jintArray out = env->NewIntArray(static_cast<jsize>(order.size()));
+  if (!order.empty()) env->SetIntArrayRegion(out, 0, static_cast<jsize>(order.size()), order.data());
+  return out;
+}
+
+/// Plans a mix in the given order. type: 0 auto, 1 EQ blend, 2 crossfade, 3 filter sweep, 4 cut.
+JFN(jstring, nativePlanCreate)(JNIEnv* env, jclass, jlong h, jintArray ids, jint type, jint lengthBeats, jint seed) {
+  const jsize n = env->GetArrayLength(ids);
+  std::vector<int> v(static_cast<std::size_t>(n));
+  if (n > 0) env->GetIntArrayRegion(ids, 0, n, v.data());
+  autodj::dj::PlanOptions o;
+  o.type = static_cast<autodj::dj::TransitionType>(std::clamp<int>(type, 0, 4));
+  o.lengthBeats = lengthBeats;
+  o.seed = static_cast<std::uint32_t>(seed);
+  auto plan = H(h)->engine->planMix(v, o);
+  if (!plan || plan->items.empty()) return toJString(env, dumpJson({{"ok", false}, {"error", "no usable tracks"}}));
+  EngineHandle* p = H(h);
+  int id;
+  {
+    std::lock_guard<std::mutex> lk(p->djMutex);
+    id = p->nextPlan++;
+    p->plans[id] = plan;
+  }
+  nlohmann::json j = {{"ok", true}, {"planId", id}};
+  j["plan"] = nlohmann::json::parse(autodj::dj::planToJson(*plan), nullptr, false);
+  return toJString(env, dumpJson(j));
+}
+
+std::shared_ptr<const autodj::dj::MixPlan> findPlan(jlong h, int planId) {
+  EngineHandle* p = H(h);
+  std::lock_guard<std::mutex> lk(p->djMutex);
+  auto it = p->plans.find(planId);
+  return it == p->plans.end() ? nullptr : it->second;
+}
+
+/// Binds the decoded audio of a registered track to a plan item (the plan keeps it alive from then on).
+JFN(jboolean, nativePlanBind)(JNIEnv*, jclass, jlong h, jint planId, jint item, jint trackId) {
+  auto plan = findPlan(h, planId);
+  auto t = H(h)->engine->track(trackId);
+  return plan && t && plan->bindAudio(item, std::move(t)) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(jboolean, nativePlanBound)(JNIEnv*, jclass, jlong h, jint planId, jint item) {
+  auto plan = findPlan(h, planId);
+  return plan && plan->audioBound(item) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(void, nativePlanUnbind)(JNIEnv*, jclass, jlong h, jint planId, jint item) {
+  if (auto plan = findPlan(h, planId)) plan->unbindAudio(item);
+}
+JFN(jboolean, nativePlanStart)(JNIEnv*, jclass, jlong h, jint planId) {
+  auto plan = findPlan(h, planId);
+  return plan && H(h)->engine->planStart(std::move(plan)) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(void, nativePlanStop)(JNIEnv*, jclass, jlong h) { H(h)->engine->planStop(); }
+JFN(void, nativePlanRelease)(JNIEnv*, jclass, jlong h, jint planId) {
+  EngineHandle* p = H(h);
+  std::lock_guard<std::mutex> lk(p->djMutex);
+  p->plans.erase(planId);
+}
+
+/// out: per deck [loaded, playing, ended, trackId, posSec, durationSec, rate, bpm, beatPhase, peakL, peakR] x 2, then the plan
+/// [active, finished, item, transition, waiting, timeSec, totalSec, beat, bpm]  (31 values).
+JFN(jboolean, nativePollDj)(JNIEnv* env, jclass, jlong h, jdoubleArray out) {
+  autodj::dj::DjStatus s;
+  if (!H(h)->engine->readDjStatus(s) || env->GetArrayLength(out) < 31) return JNI_FALSE;
+  double v[31];
+  int k = 0;
+  for (const auto& d : s.deck) {
+    v[k++] = d.loaded; v[k++] = d.playing; v[k++] = d.ended; v[k++] = d.trackId; v[k++] = d.posSec; v[k++] = d.durationSec;
+    v[k++] = d.rate; v[k++] = d.bpm; v[k++] = d.beatPhase; v[k++] = d.peakL; v[k++] = d.peakR;
+  }
+  const auto& p = s.plan;
+  v[k++] = p.active; v[k++] = p.finished; v[k++] = p.item; v[k++] = p.transition; v[k++] = p.waiting;
+  v[k++] = p.timeSec; v[k++] = p.totalSec; v[k++] = p.beat; v[k++] = p.bpm;
+  env->SetDoubleArrayRegion(out, 0, 31, v);
+  return JNI_TRUE;
+}
+
+/// Starts an offline export of a plan (its own copy: create it with nativePlanCreate, bind items as nativeExportStep reports them).
+JFN(jstring, nativeExportBegin)(JNIEnv* env, jclass, jlong h, jint planId, jstring path, jint bits) {
+  auto plan = findPlan(h, planId);
+  if (!plan) return toJString(env, dumpJson({{"ok", false}, {"error", "unknown plan"}}));
+  auto ex = std::make_unique<autodj::MixExporter>(plan, H(h)->engine->sampleRate(), bits);
+  if (!ex->open(fromJString(env, path))) return toJString(env, dumpJson({{"ok", false}, {"error", ex->error()}}));
+  EngineHandle* p = H(h);
+  std::lock_guard<std::mutex> lk(p->djMutex);
+  const int id = p->nextExport++;
+  p->exports[id] = std::move(ex);
+  return toJString(env, dumpJson({{"ok", true}, {"exportId", id}, {"frames", p->exports[id]->framesExpected()}}));
+}
+
+/// Renders up to `frames` more frames. out: [written, expected, lastStartedItem, waitingItem, peak]. False when finished or failed.
+JFN(jboolean, nativeExportStep)(JNIEnv* env, jclass, jlong h, jint exportId, jint frames, jdoubleArray out) {
+  EngineHandle* p = H(h);
+  autodj::MixExporter* ex = nullptr;
+  {
+    std::lock_guard<std::mutex> lk(p->djMutex);
+    auto it = p->exports.find(exportId);
+    if (it != p->exports.end()) ex = it->second.get();
+  }
+  if (ex == nullptr) return JNI_FALSE;
+  const bool more = ex->step(frames);  // an export is driven by one thread; the map entry stays until nativeExportEnd
+  const double v[5] = {double(ex->framesWritten()), double(ex->framesExpected()), double(ex->lastStartedItem()), double(ex->waitingItem()), double(ex->peak())};
+  if (env->GetArrayLength(out) >= 5) env->SetDoubleArrayRegion(out, 0, 5, v);
+  return more ? JNI_TRUE : JNI_FALSE;
+}
+
+JFN(jstring, nativeExportEnd)(JNIEnv* env, jclass, jlong h, jint exportId, jboolean discard) {
+  EngineHandle* p = H(h);
+  std::unique_ptr<autodj::MixExporter> ex;
+  {
+    std::lock_guard<std::mutex> lk(p->djMutex);
+    auto it = p->exports.find(exportId);
+    if (it == p->exports.end()) return toJString(env, dumpJson({{"ok", false}, {"error", "unknown export"}}));
+    ex = std::move(it->second);
+    p->exports.erase(it);
+  }
+  const std::string err = ex->error();
+  const bool closed = ex->close(discard == JNI_TRUE);
+  return toJString(env, dumpJson({{"ok", closed && err.empty()}, {"error", err}, {"frames", ex->framesWritten()}, {"peak", ex->peak()}}));
 }
 
 }  // extern "C"

@@ -50,6 +50,24 @@ internal object NativeEngine {
     @JvmStatic external fun nativeAddDemoTrack(handle: Long, kind: Int, keep: Boolean, overviewColumns: Int): String
     @JvmStatic external fun nativeRenderOffline(handle: Long, frames: Int, out: FloatArray): Int
 
+    // ---- DJ: decks, automatic mix, offline export ----
+    @JvmStatic external fun nativeTrackStub(handle: Long, name: String, analysisJson: String): Int
+    @JvmStatic external fun nativeDeckLoad(handle: Long, deck: Int, trackId: Int, startSec: Double): Boolean
+    @JvmStatic external fun nativeDeckPlay(handle: Long, deck: Int, play: Boolean): Boolean
+    @JvmStatic external fun nativeDeckSeek(handle: Long, deck: Int, sec: Double): Boolean
+    @JvmStatic external fun nativeOrderTracks(handle: Long, ids: IntArray, mode: Int): IntArray
+    @JvmStatic external fun nativePlanCreate(handle: Long, ids: IntArray, type: Int, lengthBeats: Int, seed: Int): String
+    @JvmStatic external fun nativePlanBind(handle: Long, planId: Int, item: Int, trackId: Int): Boolean
+    @JvmStatic external fun nativePlanBound(handle: Long, planId: Int, item: Int): Boolean
+    @JvmStatic external fun nativePlanUnbind(handle: Long, planId: Int, item: Int)
+    @JvmStatic external fun nativePlanStart(handle: Long, planId: Int): Boolean
+    @JvmStatic external fun nativePlanStop(handle: Long)
+    @JvmStatic external fun nativePlanRelease(handle: Long, planId: Int)
+    @JvmStatic external fun nativePollDj(handle: Long, out: DoubleArray): Boolean
+    @JvmStatic external fun nativeExportBegin(handle: Long, planId: Int, path: String, bits: Int): String
+    @JvmStatic external fun nativeExportStep(handle: Long, exportId: Int, frames: Int, out: DoubleArray): Boolean
+    @JvmStatic external fun nativeExportEnd(handle: Long, exportId: Int, discard: Boolean): String
+
     @JvmStatic external fun nativeRunBenchmark(quick: Boolean): String
     @JvmStatic external fun nativeBenchmarkProgress(): Int
 }

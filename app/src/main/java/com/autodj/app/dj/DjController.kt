@@ -1,7 +1,11 @@
 package com.autodj.app.dj
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.autodj.app.audio.AudioEngine
+import com.autodj.app.audio.DjSnapshot
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +47,21 @@ class DjController(
 
     private var nextGranularReplace = 0
 
+    /** The automatic mix: list, plan, playback, export. */
+    val mix = MixController(this, engine, scope, io, ui)
+
+    /** What the audio thread reported last (decks and mix); refreshed by [poll]. */
+    var snapshot by mutableStateOf(DjSnapshot.EMPTY)
+        private set
+
+    /** Called ~30 times a second from the UI loop of the host. */
+    fun poll() {
+        engine.pollDj()?.let {
+            snapshot = it
+            mix.onStatus(it)
+        }
+    }
+
     private val queue = Channel<String>(Channel.UNLIMITED)
 
     init {
@@ -71,6 +90,7 @@ class DjController(
     fun addDemoTracks(): Int = importSources((0..3).map { TrackItem.DEMO_PREFIX + it })
 
     fun remove(id: String) {
+        mix.onLibraryRemoved(id)
         tracks.removeAll { it.id == id }
         persist()
     }

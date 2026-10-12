@@ -8,8 +8,10 @@
 // `trackBeat0 + (m - startBeat) / beatMul`, so every track in a transition is on the same beat and bar grid by construction.
 // This also makes the deck's source position a pure function of m, which is what Deck chases.
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -71,6 +73,16 @@ struct TransitionInfo {
   std::string note;  // why this type / length (shown in the UI)
 };
 
+/// Which decoded audio the audio thread plays for each plan item. A long set must not sit in memory as decoded float audio, so
+/// the plan is built from analysis-only tracks ("stubs": Track::audio == nullptr) and the control side binds the decoded track
+/// of an item shortly before it is due and unbinds it once it has been played. The audio thread only reads an atomic pointer.
+struct PlanAudio {
+  std::mutex mutex;                                     // control side only
+  std::vector<std::shared_ptr<const Track>> owner;      // keeps bound tracks alive
+  std::unique_ptr<std::atomic<const Track*>[]> ptr;     // what the audio thread reads
+  std::size_t count = 0;
+};
+
 struct MixPlan {
   std::vector<PlanItem> items;
   std::vector<TempoPoint> tempo;  // ascending in beat; two points at the same beat = a tempo jump
@@ -80,6 +92,20 @@ struct MixPlan {
   double totalBeats = 0.0;
   double totalSec = 0.0;
   std::uint32_t id = 0;
+
+  // ---- audio of the items (see PlanAudio) ----
+  mutable PlanAudio audio;
+  /// Sizes the binding table; items whose Track carries audio are bound from the start. Called by planMix().
+  void initAudio();
+  /// Control thread. `track` must have audio; it replaces any earlier binding of the item.
+  bool bindAudio(int item, std::shared_ptr<const Track> track) const;
+  /// Control thread: forgets the binding. Only after the audio thread is done with the item (it started the next-but-one).
+  void unbindAudio(int item) const;
+  bool audioBound(int item) const noexcept;
+  /// Audio thread: the track to play for `item`, nullptr while it is not bound.
+  const Track* audioOf(int item) const noexcept {
+    return static_cast<std::size_t>(item) < audio.count ? audio.ptr[static_cast<std::size_t>(item)].load(std::memory_order_acquire) : nullptr;
+  }
 
   // ---- time <-> beat (pure functions, audio-thread safe) ----
   double bpmAt(double beat) const noexcept;

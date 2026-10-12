@@ -87,6 +87,37 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     /** Renders [frames] stereo frames without audio hardware (tests, export). Only while the audio output is stopped. */
     fun renderOffline(frames: Int, out: FloatArray): Int = NativeEngine.nativeRenderOffline(handle, frames, out)
 
+    // ---- DJ: decks, automatic mix, offline export ---------------------------------------------------
+    private val djBuf = DoubleArray(DjSnapshot.SIZE)
+
+    /** A library entry without audio (analysis only), enough to plan a mix with. Returns the native track id, 0 on error. */
+    fun trackStub(name: String, analysisJson: String): Int = NativeEngine.nativeTrackStub(handle, name, analysisJson)
+    fun deckLoad(deck: Int, trackId: Int, startSec: Double = 0.0): Boolean = NativeEngine.nativeDeckLoad(handle, deck, trackId, startSec)
+    fun deckUnload(deck: Int): Boolean = NativeEngine.nativeDeckLoad(handle, deck, 0, 0.0)
+    fun deckPlay(deck: Int, play: Boolean): Boolean = NativeEngine.nativeDeckPlay(handle, deck, play)
+    fun deckSeek(deck: Int, sec: Double): Boolean = NativeEngine.nativeDeckSeek(handle, deck, sec)
+
+    /** Suggested order for [ids] (mode: 0 as listed, 1 smart, 2 tempo up, 3 tempo down): indices into [ids]. */
+    fun orderTracks(ids: IntArray, mode: Int): IntArray = NativeEngine.nativeOrderTracks(handle, ids, mode)
+
+    /** Plans a mix of the tracks in this order. type: 0 auto, 1 EQ blend, 2 crossfade, 3 filter sweep, 4 cut. Returns the result JSON. */
+    fun planCreate(ids: IntArray, type: Int, lengthBeats: Int, seed: Int = 1): String = NativeEngine.nativePlanCreate(handle, ids, type, lengthBeats, seed)
+    fun planBind(planId: Int, item: Int, trackId: Int): Boolean = NativeEngine.nativePlanBind(handle, planId, item, trackId)
+    fun planBound(planId: Int, item: Int): Boolean = NativeEngine.nativePlanBound(handle, planId, item)
+    fun planUnbind(planId: Int, item: Int) = NativeEngine.nativePlanUnbind(handle, planId, item)
+    fun planStart(planId: Int): Boolean = NativeEngine.nativePlanStart(handle, planId)
+    fun planStop() = NativeEngine.nativePlanStop(handle)
+    fun planRelease(planId: Int) = NativeEngine.nativePlanRelease(handle, planId)
+
+    fun pollDj(): DjSnapshot? = if (NativeEngine.nativePollDj(handle, djBuf)) DjSnapshot.fromArray(djBuf) else null
+
+    /** Opens the output file of an offline render of [planId]; result JSON {ok, exportId, frames} or {ok:false, error}. */
+    fun exportBegin(planId: Int, path: String, bits: Int): String = NativeEngine.nativeExportBegin(handle, planId, path, bits)
+
+    /** Renders up to [frames] more frames; [progress] receives [written, expected, lastStartedItem, waitingItem, peak]. False = finished. */
+    fun exportStep(exportId: Int, frames: Int, progress: DoubleArray): Boolean = NativeEngine.nativeExportStep(handle, exportId, frames, progress)
+    fun exportEnd(exportId: Int, discard: Boolean): String = NativeEngine.nativeExportEnd(handle, exportId, discard)
+
     fun pollStatus(): EngineStatus? =
         if (NativeEngine.nativePollStatus(handle, statusBuf)) EngineStatus.fromArray(statusBuf) else null
 

@@ -87,7 +87,10 @@ void bassSwap(LaneBuilder& lb, int deckOut, int deckIn, double T, double L) {
 std::shared_ptr<MixPlan> planMix(const std::vector<std::shared_ptr<const Track>>& tracks, const PlanOptions& opt) {
   auto plan = std::make_shared<MixPlan>();
   const int n = static_cast<int>(tracks.size());
-  if (n == 0) return plan;
+  if (n == 0) {
+    plan->initAudio();
+    return plan;
+  }
 
   // ---- per-track facts and tempo relation to the previous track -------------------------------------
   std::vector<Info> info(n);
@@ -95,7 +98,7 @@ std::shared_ptr<MixPlan> planMix(const std::vector<std::shared_ptr<const Track>>
     Info& f = info[i];
     f.t = tracks[i].get();
     const auto& a = f.t->analysis;
-    f.duration = f.t->durationSec();
+    f.duration = f.t->analysis.durationSec > 0.0 ? f.t->analysis.durationSec : f.t->durationSec();
     f.hasTempo = a.hasTempo() && a.beatSec > 0.0;
     f.trusted = f.hasTempo && a.gridConfidence >= 0.35;
   }
@@ -180,7 +183,7 @@ std::shared_ptr<MixPlan> planMix(const std::vector<std::shared_ptr<const Track>>
         note = type == TransitionType::EqBlend ? "Tonarten passen: Bass-Tausch über 8 Takte" : "Filter-Übergang";
       } else {
         type = (i % 2 == 0) ? TransitionType::FilterSweep : TransitionType::Crossfade;
-        note = "Tonarten passen nicht ideal: Übergang über Filter";
+        note = type == TransitionType::FilterSweep ? "Tonarten passen nicht ideal: Filter-Übergang" : "Tonarten passen nicht ideal: weiche Überblendung";
       }
     } else if (note.empty()) {
       note = "";
@@ -304,6 +307,7 @@ std::shared_ptr<MixPlan> planMix(const std::vector<std::shared_ptr<const Track>>
     t.note = p.note;
     plan->transitions.push_back(std::move(t));
   }
+  plan->initAudio();
   return plan;
 }
 
