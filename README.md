@@ -10,6 +10,7 @@ Kotlin + Jetpack Compose für die Oberfläche, C++17 (NDK) für den gesamten Aud
 | 1 | Setup, Oboe-Ausgabe, Audio-Thread-Regeln, lock-freie Queues, Parameter-Registry, Transport/BPM-Clock | **fertig** (Host-getestet) |
 | 2 | Granular-Prototyp mit Benchmarks 64/128/256/512 Grains, Stresstest | **fertig** (Host-getestet) |
 | 2+ | Instrument-Oberfläche nach der genannten Referenz (Cells Hold/Step/Keys, Chaos, Output, dunkler Bildschirm) | **fertig** (Host- und JVM-getestet, nicht auf Gerät) |
+| 2++ | macOS-App: dieselbe Instrument-Oberfläche (Compose Multiplatform) auf derselben Engine, CoreAudio-Ausgabe, `.dmg` aus der CI | **gebaut und getestet in der CI, nie auf einem Mac gestartet** |
 | 3–9 | Import/Analyse, Beat-Matching, Auto-Mix, Editor, Drumpad, Granular-Feinschliff, Politur | offen, siehe [Roadmap](docs/ARCHITECTURE.md#8-roadmap-meilensteine-aus-der-spezifikation) |
 
 **Ehrlich gesagt:** Die App wurde gebaut (Debug und Release, arm64-v8a + x86_64) und ihre JVM-Unit-Tests laufen, sie wurde
@@ -20,7 +21,7 @@ der Benchmark im Debug-Tab der App liefert die Zahlen auf dem Gerät.
 
 ## Schnellstart auf dem Rechner (kein Android nötig)
 
-Voraussetzungen: CMake ≥ 3.22, Ninja, ein C++17-Compiler (getestet mit GCC 13), Python 3. GoogleTest und nlohmann/json
+Voraussetzungen: CMake ≥ 3.22, Ninja, ein C++17-Compiler (GCC 13 oder Apple clang), Python 3. GoogleTest und nlohmann/json
 werden beim Konfigurieren geladen (gepinnte Tags).
 
 ```bash
@@ -45,6 +46,32 @@ build-host/native/tools/render_cli --scene mix --seconds 24 --out mix.wav
 ```
 
 Hörproben aus diesem Stand liegen als `granular_*.wav` und `instrument_*.wav` (Step- und Keys-Modus) in den Ergebnissen des Threads (nicht im Repository eingecheckt).
+
+## macOS
+
+Die macOS-App liegt in `desktopApp/`: dieselbe Instrument-Oberfläche wie auf Android (Compose Multiplatform teilt die
+`androidx.compose`-API; die Dateien werden per `syncSharedSources` aus `app/` übernommen, nicht kopiert), dieselbe
+C++-Engine über denselben JNI-Code, aber mit **CoreAudio** statt Oboe (`native/platform/coreaudio/`). Die native Bibliothek
+`libautodj_native.dylib` wird universal (arm64 + x86_64) gebaut und in die App gepackt.
+
+**Fertige App herunterladen:** GitHub → *Actions* → neuester Lauf von „CI“ → Artefakt **AutoDJ-macOS** (`.dmg` und `AutoDJ-macos-app.zip`).
+Die App ist **nicht signiert und nicht notarisiert**; beim ersten Start blockt macOS sie. Rechtsklick auf die App → *Öffnen*,
+oder `xattr -dr com.apple.quarantine /Applications/AutoDJ.app`.
+
+**Selbst bauen** (macOS, Xcode Command Line Tools, CMake, JDK 17 oder neuer):
+
+```bash
+./gradlew -PdesktopOnly=true :desktopApp:run                  # startet die App (baut vorher die .dylib)
+./gradlew -PdesktopOnly=true :desktopApp:packageDmg           # .dmg unter desktopApp/build/compose/binaries/main/dmg/
+./gradlew -PdesktopOnly=true :desktopApp:test                 # JNI-Smoketest gegen die echte .dylib + Offscreen-Render der Oberfläche
+```
+
+`-PdesktopOnly=true` lässt das Android-Modul weg (kein Android SDK nötig). Bedienung wie auf Android; Berührung wird zu Mausklick/-ziehen.
+Der CI-Lauf baut außerdem den C++-Kern mit Apple clang und führt dort alle Tests aus.
+
+**Ehrlich dazu:** Ich hatte beim Schreiben keinen Mac. Der CoreAudio-Treiber, die `.dylib` und die App sind deshalb nur das, was die CI auf
+einem macOS-Runner baut und testet (bei den Audiotests ohne echtes Gerät). Ob Ton herauskommt, wie die Latenz ist und ob die App auf einem
+Intel-Mac läuft (der x86_64-Teil wird gebaut, aber nicht ausgeführt), ist **nicht geprüft**.
 
 ## Android
 
@@ -91,11 +118,12 @@ native/core      lock-freie Queues, Parameter-Registry, Presets, Transport, Samp
 native/granular  Grain-Pool, Hüllkurven, Kernels (NEON/SSE2/skalar), Scheduler, adaptive Qualität, GranularNode (Cells, Chaos, Output)
 native/fx        ChaosFx (Hall → Flanger in einem Regler)
 native/engine    Engine (Commands, Blöcke, Master, Status), Testton-Node
-native/platform  nur Android: Oboe-Treiber, JNI-Brücke
+native/platform  Audiotreiber + JNI-Brücke: Oboe (Android), CoreAudio (macOS)
 native/bench     Benchmark (Host-CLI und App teilen sich den Code)
 native/tools     render_cli, stress_test
 native/tests     GoogleTest-Suiten + Golden-Datei
-app/             Kotlin/Compose
+app/             Kotlin/Compose (Android)
+desktopApp/      macOS-App (Compose Multiplatform), teilt Oberfläche und Engine-Wrapper mit app/
 tools/           rt_lint.py (statischer Audio-Thread-Lint)
 docs/            ARCHITECTURE.md, AUDIO_THREAD_RULES.md, BENCHMARKS.md, results/, screenshots/
 ```

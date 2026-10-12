@@ -3,11 +3,11 @@ add_subdirectory(fx)
 add_subdirectory(granular)
 add_subdirectory(engine)
 
-if(ANDROID)
+if(ANDROID OR AUTODJ_BUILD_JNI)
   add_subdirectory(platform)
 endif()
 
-if(AUTODJ_BUILD_BENCH OR ANDROID)
+if(AUTODJ_BUILD_BENCH OR ANDROID OR AUTODJ_BUILD_JNI)
   add_subdirectory(bench)
 endif()
 

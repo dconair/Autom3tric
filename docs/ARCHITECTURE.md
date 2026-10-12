@@ -18,10 +18,11 @@ native/
               GranularParams (Registrierung) · GranularNode (1–4 Voices, Cells Hold/Step/Keys, Chaos, Output)
   fx/         ChaosFx (ein Makro-Regler: Hall → Flanger); später Heimat des Effekt-Racks (M6)
   engine/     Engine (Composition Root: Commands, Blöcke, Master, Status) · ToneNode (Testton)
-  platform/   nur Android: oboe/AudioDriver (Stream, Neustart, LatencyTuner, ADPF) · jni/NativeBridge
+  platform/   Audiotreiber + JNI: oboe/AudioDriver (Android: Stream, Neustart, LatencyTuner, ADPF) · coreaudio/AudioDriver (macOS: ein AudioUnit) · jni/NativeBridge (gemeinsam)
   bench/      BenchCore (gemeinsam für Host-CLI und App) · bench_granular
   tools/      render_cli (Offline-Render → WAV) · stress_test (Fuzz + Dauerlauf)
   tests/      GoogleTest: core, granular, engine (+ Golden-Datei)
+desktopApp/   macOS-App: Compose Multiplatform, teilt Instrument-Oberfläche und Engine-Wrapper mit app/ (Gradle `syncSharedSources`), eigener `NativeLibrary`-Loader und `DesktopHost`
 app/          Kotlin/Compose: ViewModel, Instrument-Oberfläche (dunkler Bildschirm, Knobs, Pads), generische Param-Controls aus der Registry, Transport-/Debug-Tab
 tools/        rt_lint.py (statischer Audio-Thread-Lint)
 docs/         diese Datei, AUDIO_THREAD_RULES.md, BENCHMARKS.md, results/
@@ -114,6 +115,26 @@ und XY-Pad (M8), Einbindung als Effekt/Übergang (M8). Die Oberfläche läuft ge
 Tests ohne Gerät eine echte Registry mit Fake-Host bedienen können (`FakeInstrumentHost`); Screenshots entstehen so auf der
 JVM (Robolectric, `docs/screenshots/`) und zeigen das **Layout**, nicht die Schrift oder das Rendering eines bestimmten Geräts.
 
+## 5b. macOS
+
+Ziel: dieselbe App auch auf dem Mac. Weg: Kern und Oberfläche bleiben gemeinsam, nur die Plattformschicht ist getauscht.
+
+| Schicht | Android | macOS |
+|---|---|---|
+| Audio-Ausgabe | Oboe/AAudio | CoreAudio (`kAudioUnitSubType_DefaultOutput`, Float-Stereo, folgt dem Standardgerät) |
+| JNI-Brücke | `libautodj_native.so` | `libautodj_native.dylib` (universal arm64 + x86_64), derselbe `NativeBridge.cpp` |
+| Oberfläche | Compose (AndroidX) | Compose Multiplatform Desktop, **dieselben** Dateien für Instrument, Regler und Bildschirm |
+| Host | `AutoDjViewModel` | `DesktopHost` (gleiches `InstrumentHost`-Interface, Polling aus der UI) |
+| Paket | APK | `.dmg` (jpackage über das Compose-Plugin), unsigniert |
+
+Entscheidungen: Compose Multiplatform statt SwiftUI, weil die Oberfläche dann nicht doppelt gepflegt wird und derselbe getestete Code läuft;
+CoreAudio statt Oboe, weil Oboe nur Android unterstützt; die geteilten Kotlin-Dateien werden per Gradle-Sync übernommen, damit es keine Kopien gibt.
+Der Preis: Die macOS-App braucht eine JVM (im `.dmg` mitgeliefert, deshalb ca. 100 MB), und ein späterer reiner Swift-Port wäre ein neues Projekt.
+
+Grenzen (ehrlich): Der RT-Wächter ist in der macOS-Bibliothek aus (Release). CoreAudio-Latenz wird aus Puffergröße, Gerätelatenz und Safety-Offset
+geschätzt, nicht gemessen. Ob der Treiber unter Last, bei Gerätewechsel (Kopfhörer) und auf Intel-Macs gut läuft, ist ungeprüft; die CI hat keine
+Audiohardware. Keine Signierung/Notarisierung (dafür braucht es ein Apple-Developer-Konto).
+
 ## 6. Wichtige Entscheidungen
 
 | Entscheidung | Begründung | Alternative / Preis |
@@ -125,6 +146,7 @@ JVM (Robolectric, `docs/screenshots/`) und zeigen das **Layout**, nicht die Schr
 | Ein `ParamStore`-Atomic pro Parameter, relaxed | wartefrei, keine Queue-Flut bei Slider-Bewegungen | Mehrere zusammengehörige Werte sind nicht atomar als Gruppe; für Granular unkritisch (pro Block geglättet) |
 | JSON (nlohmann) nur Control-Thread | Komfort ohne Audio-Risiko; Presets/Specs/Projekt | Parsing nie im Callback |
 | Oboe über Maven/Prefab (1.10.0) | gepflegte Version, 16-KB-Seiten-Support über NDK 29 | Abhängigkeit von Google Maven beim Build |
+| Compose Multiplatform + CoreAudio für macOS | siehe §5b | JVM im Paket, unsigniert |
 | minSdk 26, arm64-v8a + x86_64 | AAudio ab 26 (Oboe fällt darunter auf OpenSL zurück, nicht nötig); armeabi-v7a bewusst weggelassen | ältere 32-bit-Geräte nicht unterstützt |
 | Debug-Build mit RT-Guard, der **zählt statt abzustürzen** | erster Gerätelauf soll Verstöße sichtbar machen, nicht die App beenden | Host-Tests/Stresstest brechen weiterhin hart ab |
 

@@ -8,6 +8,7 @@ coreKtx = "1.17.0"
 oboe = "1.10.0"
 junit = "4.13.2"
 orgJson = "20250517"
+composeMultiplatform = "1.9.1"
 robolectric = "4.14.1"
 
 [libraries]
@@ -31,4 +32,6 @@ androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-mani
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

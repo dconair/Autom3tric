@@ -1,12 +1,12 @@
 package com.autodj.app.audio
 
 /**
- * Raw JNI surface of libautodj_native.so (native/platform/jni/NativeBridge.cpp). Everything here is a
+ * Raw JNI surface of libautodj_native (native/platform/jni/NativeBridge.cpp). Everything here is a
  * control-thread call; the audio callback itself never touches the JVM. Use [AudioEngine] instead of this object.
  */
 internal object NativeEngine {
     init {
-        System.loadLibrary("autodj_native")
+        NativeLibrary.load()
     }
 
     @JvmStatic external fun nativeCreate(sampleRate: Int, voices: Int): Long

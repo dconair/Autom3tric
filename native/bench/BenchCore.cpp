@@ -8,6 +8,10 @@
 #include <string>
 #include <thread>
 
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
+
 #include <nlohmann/json.hpp>
 
 #include "autodj/core/Clock.h"
@@ -99,6 +103,12 @@ Result runOnce(const Config& cfg, const std::shared_ptr<const SampleBuffer>& src
 }
 
 std::string cpuName() {
+#if defined(__APPLE__)
+  char buf[256];
+  std::size_t len = sizeof buf;
+  if (sysctlbyname("machdep.cpu.brand_string", buf, &len, nullptr, 0) == 0 && len > 1) return std::string(buf);
+  return "Apple (unknown model)";
+#endif
   std::ifstream f("/proc/cpuinfo");
   std::string line, best;
   while (std::getline(f, line)) {

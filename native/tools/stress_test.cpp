@@ -10,6 +10,10 @@
 // no growth of resident memory after warm-up, every retired buffer/graph returns to the control side.
 #include <unistd.h>
 
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
+
 #include <algorithm>
 #include <fenv.h>
 
@@ -35,12 +39,19 @@ using namespace autodj;
 namespace {
 
 long rssKb() {
+#if defined(__APPLE__)
+  mach_task_basic_info_data_t info;
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count) != KERN_SUCCESS) return -1;
+  return static_cast<long>(info.resident_size / 1024);
+#else
   std::FILE* f = std::fopen("/proc/self/statm", "r");
   if (!f) return -1;
   long pages = 0, resident = 0;
   if (std::fscanf(f, "%ld %ld", &pages, &resident) != 2) resident = -1;
   std::fclose(f);
   return resident < 0 ? -1 : resident * (sysconf(_SC_PAGESIZE) / 1024);
+#endif
 }
 
 struct ControlStats {
@@ -190,7 +201,13 @@ int main(int argc, char** argv) {
     else if (a == "--fuzz-callbacks") fuzzCallbacks = std::atoi(next().c_str());
     else if (a == "--seed") seed = static_cast<std::uint32_t>(std::atoi(next().c_str()));
     else if (a == "--quiet") quiet = true;
-    else if (a == "--trap-fpe") feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);  // debugging aid: SIGFPE at the first bad operation
+    else if (a == "--trap-fpe") {  // debugging aid: SIGFPE at the first bad operation (glibc only)
+#if defined(__GLIBC__)
+      feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
+#else
+      std::fprintf(stderr, "--trap-fpe is only available with glibc\n");
+#endif
+    }
   }
 
   bool failed = false;
@@ -248,8 +265,13 @@ int main(int argc, char** argv) {
       std::uint64_t late = 0;
       if (paced) {
         deadline += static_cast<std::uint64_t>(1e9 * n / cfg.sampleRate);
+#if defined(__linux__)
         timespec ts{static_cast<time_t>(deadline / 1000000000ull), static_cast<long>(deadline % 1000000000ull)};
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr);
+#else  // no absolute sleep on macOS: sleep for the remaining time on our own monotonic clock
+        const std::uint64_t nowNs = monotonicNowNs();
+        if (deadline > nowNs) std::this_thread::sleep_for(std::chrono::nanoseconds(deadline - nowNs));
+#endif
         late = monotonicNowNs() - deadline;
       }
       const std::uint64_t t0 = monotonicNowNs();

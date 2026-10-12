@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.autodj.app.AutoDjViewModel
 import com.autodj.app.audio.GrainVizSnapshot
 import com.autodj.app.audio.SourceInfo
 import com.autodj.app.audio.ParamSpec
@@ -296,22 +295,3 @@ private fun OutputKnob(p: InstrumentParams, size: Dp) = Knob(
     "output", formatDb(p.output.value), p.output.normalized, { p.output.setNormalized(it) },
     size = size, onReset = { p.output.reset() },
 )
-
-/** Adapter between the ViewModel (engine, polled state) and the instrument screen. */
-fun AutoDjViewModel.asInstrumentHost(): InstrumentHost {
-    val vm = this
-    return object : InstrumentHost {
-        override val viz get() = vm.viz
-        override var selectedVoice: Int
-            get() = vm.selectedVoice
-            set(value) { vm.selectedVoice = value }
-        override fun spec(key: String) = vm.engine.spec(key)
-        override fun paramState(spec: ParamSpec): State<Float> = vm.paramState(spec)
-        override fun setParam(spec: ParamSpec, value: Float) = vm.setParam(spec, value)
-        override fun noteOn(voice: Int, pitch: Float, velocity: Float) = vm.noteOn(voice, pitch, velocity)
-        override fun noteOff(voice: Int) = vm.noteOff(voice)
-        override fun resetSteps(voice: Int) = vm.resetSteps(voice)
-        override fun peaksFor(slot: Int) = vm.peaksFor(slot, vm.peaksVersion)
-        override fun sourceInfoFor(slot: Int) = vm.sourceInfoFor(slot, vm.peaksVersion)
-    }
-}

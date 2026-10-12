@@ -20,4 +20,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "AutoDJ"
-include(":app")
+// -PdesktopOnly=true skips the Android module (and with it the need for an Android SDK), e.g. when only the macOS app is built.
+if (!providers.gradleProperty("desktopOnly").isPresent) include(":app")
+include(":desktopApp")

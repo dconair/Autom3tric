@@ -4,7 +4,11 @@
 // Conventions: handle = pointer to Handle as jlong. All strings are UTF-8 JSON. Poll calls fill preallocated
 // primitive arrays supplied by Kotlin, so the 30 Hz UI poll does not allocate on the Java side either.
 
+#ifdef __ANDROID__
 #include <android/log.h>
+#else
+#include <cstdio>
+#endif
 #include <jni.h>
 
 #include <atomic>
@@ -47,8 +51,12 @@ std::atomic<int> g_benchProgress{0};
 
 // Debug builds (AUTODJ_RT_GUARD=1): a violation is logged and counted, shown in the debug overlay, and the app keeps running.
 #if AUTODJ_RT_GUARD
-void androidViolationHandler(const char* what) noexcept {
+void violationHandler(const char* what) noexcept {
+#ifdef __ANDROID__
   __android_log_print(ANDROID_LOG_ERROR, "AutoDJ", "RT VIOLATION on audio thread: %s", what);
+#else
+  std::fprintf(stderr, "AutoDJ RT VIOLATION on audio thread: %s\n", what);
+#endif
 }
 #endif
 
@@ -70,7 +78,7 @@ JFN(jlong, nativeCreate)(JNIEnv*, jclass, jint sampleRate, jint voices) {
   cfg.granularVoices = voices;
   cfg.realtime = true;
 #if AUTODJ_RT_GUARD
-  autodj::rt::setViolationHandler(&androidViolationHandler);
+  autodj::rt::setViolationHandler(&violationHandler);
 #endif
   auto* h = new Handle();
   h->engine = std::make_unique<Engine>(cfg);
