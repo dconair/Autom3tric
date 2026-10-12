@@ -13,6 +13,7 @@ import com.autodj.app.ui.dj.MixScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import org.jetbrains.skia.EncodedImageFormat
 import org.junit.Assume.assumeTrue
@@ -34,6 +35,9 @@ class DjMixTest {
     private lateinit var engine: AudioEngine
     private lateinit var scope: CoroutineScope
     private lateinit var dir: File
+    // Compose state is written on one thread, like on the real UI thread
+    private val uiThread = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val ui = uiThread.asCoroutineDispatcher()
 
     @BeforeTest fun setUp() {
         val path = System.getProperty("autodj.native.path")
@@ -45,12 +49,14 @@ class DjMixTest {
 
     @AfterTest fun tearDown() {
         if (::scope.isInitialized) scope.cancel()
+        Thread.sleep(500)  // a decoder thread that was mid-call finishes before the engine goes away
         if (::engine.isInitialized) engine.close()
+        uiThread.shutdown()
         if (::dir.isInitialized) dir.deleteRecursively()
     }
 
     private fun controller() =
-        DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), MemoryLibraryStore(), scope, io = Dispatchers.IO, ui = Dispatchers.Default)
+        DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), MemoryLibraryStore(), scope, io = Dispatchers.IO, ui = ui)
 
     private fun DjController.demoLibrary(): DjController {
         addDemoTracks()

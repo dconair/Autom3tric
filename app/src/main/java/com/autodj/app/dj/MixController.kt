@@ -78,6 +78,7 @@ class MixController(
         val bound = BooleanArray(items.size)
         val loading = HashSet<Int>()
         val failed = HashSet<Int>()
+        @Volatile var dead = false  // released: late decoder results are dropped
     }
 
     private var running: Run? = null
@@ -302,7 +303,7 @@ class MixController(
             if (err != null) scope.launch(ui) { error = "${run.items[j].name}: $err" }
             return false
         }
-        val ok = engine.planBind(run.planId, j, id)
+        val ok = !run.dead && engine.planBind(run.planId, j, id)
         engine.trackRelease(id)  // the plan keeps the audio alive
         if (ok) synchronized(run) { run.bound[j] = true }
         return ok
@@ -319,6 +320,7 @@ class MixController(
     }
 
     private fun release(run: Run) {
+        run.dead = true
         for (j in run.items.indices) {
             val drop = synchronized(run) { run.bound[j].also { run.bound[j] = false } }
             if (drop) engine.planUnbind(run.planId, j)

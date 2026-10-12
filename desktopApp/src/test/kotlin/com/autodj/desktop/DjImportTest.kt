@@ -9,6 +9,7 @@ import com.autodj.app.dj.TrackStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import org.junit.Assume.assumeTrue
 import java.io.File
@@ -35,6 +36,9 @@ class DjImportTest {
     private lateinit var engine: AudioEngine
     private lateinit var scope: CoroutineScope
     private lateinit var dir: File
+    // Compose state is written on one thread, like on the real UI thread
+    private val uiThread = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val ui = uiThread.asCoroutineDispatcher()
 
     @BeforeTest fun setUp() {
         val path = System.getProperty("autodj.native.path")
@@ -47,11 +51,12 @@ class DjImportTest {
     @AfterTest fun tearDown() {
         if (::scope.isInitialized) scope.cancel()
         if (::engine.isInitialized) engine.close()
+        uiThread.shutdown()
         if (::dir.isInitialized) dir.deleteRecursively()
     }
 
     private fun controller(store: com.autodj.app.dj.LibraryStore = MemoryLibraryStore()) =
-        DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), store, scope, io = Dispatchers.IO, ui = Dispatchers.Default)
+        DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), store, scope, io = Dispatchers.IO, ui = ui)
 
     private fun DjController.awaitIdle(timeoutMs: Long = 120_000) {
         val end = System.currentTimeMillis() + timeoutMs
