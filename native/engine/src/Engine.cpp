@@ -34,6 +34,7 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
 
   ids_.tone = registerToneParams(reg_);
   ids_.granular = granular::registerGranularParams(reg_, cfg_.granularVoices);
+  ids_.dj = dj::registerDjParams(reg_);
   reg_.freeze();
   params_ = std::make_unique<ParamStore>(reg_);
 
@@ -43,8 +44,11 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   granular_ = std::make_unique<granular::GranularNode>(ids_.granular, cfg_.seed);
   granular_->prepare(spec);
   granular_->attachViz(&vizBuf_);
+  dj_ = std::make_unique<dj::DjNode>(ids_.dj);
+  dj_->prepare(spec);
   allNodes_[0] = tone_.get();
   allNodes_[1] = granular_.get();
+  allNodes_[2] = dj_.get();
 
   transport_.prepare(cfg_.sampleRate);
   std::memset(nodeBuf_, 0, sizeof(nodeBuf_));
@@ -52,6 +56,7 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   auto g = std::make_unique<GraphDesc>();
   g->add(tone_.get(), 1.f);
   g->add(granular_.get(), 1.f);
+  g->add(dj_.get(), 1.f);
   g->version = ++graphVersion_;
   graph_ = g.get();
   heldGraphs_.emplace(graph_, std::move(g));
@@ -178,6 +183,86 @@ std::size_t Engine::trackCount() const {
   return tracks_.size();
 }
 
+// ---- DJ ------------------------------------------------------------------------------------------------
+
+bool Engine::deckLoad(int deck, std::shared_ptr<const Track> track, double startSec) {
+  if (deck < 0 || deck > 1) return false;
+  const Track* raw = track.get();
+  if (raw != nullptr) {
+    std::lock_guard<std::mutex> lk(ownerMutex_);
+    HeldTrack& h = heldTracks_[raw];
+    h.track = std::move(track);
+    ++h.refs;
+  }
+  Command c = Command::make(CmdType::DeckLoad);
+  c.target = static_cast<std::uint8_t>(deck);
+  c.f0 = static_cast<float>(startSec);
+  c.payload.ptr = raw;
+  if (post(c)) return true;
+  if (raw != nullptr) {
+    std::lock_guard<std::mutex> lk(ownerMutex_);
+    auto it = heldTracks_.find(raw);
+    if (it != heldTracks_.end() && --it->second.refs <= 0) heldTracks_.erase(it);
+  }
+  return false;
+}
+
+bool Engine::deckPlay(int deck, bool play) {
+  if (deck < 0 || deck > 1) return false;
+  Command c = Command::make(CmdType::DeckPlay);
+  c.target = static_cast<std::uint8_t>(deck);
+  c.i0 = play ? 1 : 0;
+  return post(c);
+}
+
+bool Engine::deckSeek(int deck, double seconds) {
+  if (deck < 0 || deck > 1) return false;
+  Command c = Command::make(CmdType::DeckSeek);
+  c.target = static_cast<std::uint8_t>(deck);
+  c.payload.d = seconds;
+  return post(c);
+}
+
+std::shared_ptr<const dj::MixPlan> Engine::planMix(const std::vector<int>& trackIds, const dj::PlanOptions& options) const {
+  std::vector<std::shared_ptr<const Track>> list;
+  for (int id : trackIds) {
+    if (auto t = track(id)) list.push_back(std::move(t));
+  }
+  return dj::planMix(list, options);
+}
+
+bool Engine::planStart(std::shared_ptr<const dj::MixPlan> plan) {
+  if (!plan || plan->items.empty()) return false;
+  const dj::MixPlan* raw = plan.get();
+  {
+    std::lock_guard<std::mutex> lk(ownerMutex_);
+    heldPlans_[raw] = std::move(plan);
+  }
+  Command c = Command::make(CmdType::PlanStart);
+  c.payload.ptr = raw;
+  if (post(c)) return true;
+  std::lock_guard<std::mutex> lk(ownerMutex_);
+  heldPlans_.erase(raw);
+  return false;
+}
+
+bool Engine::planStop() { return post(Command::make(CmdType::PlanStop)); }
+
+bool Engine::readDjStatus(dj::DjStatus& out) {
+  std::lock_guard<std::mutex> lk(readMutex_);
+  return djBuf_.read(out);
+}
+
+std::size_t Engine::heldTrackCount() const {
+  std::lock_guard<std::mutex> lk(ownerMutex_);
+  return heldTracks_.size();
+}
+
+std::size_t Engine::heldPlanCount() const {
+  std::lock_guard<std::mutex> lk(ownerMutex_);
+  return heldPlans_.size();
+}
+
 bool Engine::publishGraph(std::unique_ptr<GraphDesc> graph) {
   if (!graph) return false;
   graph->version = ++graphVersion_;
@@ -198,6 +283,7 @@ std::unique_ptr<GraphDesc> Engine::makeGraph(float toneGain, float granularGain)
   auto g = std::make_unique<GraphDesc>();
   g->add(tone_.get(), toneGain);
   g->add(granular_.get(), granularGain);
+  g->add(dj_.get(), 1.f);
   return g;
 }
 
@@ -206,10 +292,15 @@ std::size_t Engine::collectGarbage() {
   std::size_t n = 0;
   GarbageMsg m;
   while (garbage_.tryPop(m)) {
-    if (m.kind == GarbageMsg::Kind::SampleBuffer) {
-      heldBuffers_.erase(static_cast<const SampleBuffer*>(m.ptr));
-    } else {
-      heldGraphs_.erase(static_cast<const GraphDesc*>(m.ptr));
+    switch (m.kind) {
+      case GarbageMsg::Kind::SampleBuffer: heldBuffers_.erase(static_cast<const SampleBuffer*>(m.ptr)); break;
+      case GarbageMsg::Kind::Graph: heldGraphs_.erase(static_cast<const GraphDesc*>(m.ptr)); break;
+      case GarbageMsg::Kind::Track: {
+        auto it = heldTracks_.find(static_cast<const Track*>(m.ptr));
+        if (it != heldTracks_.end() && --it->second.refs <= 0) heldTracks_.erase(it);
+        break;
+      }
+      case GarbageMsg::Kind::Plan: heldPlans_.erase(static_cast<const dj::MixPlan*>(m.ptr)); break;
     }
     ++n;
   }
@@ -309,6 +400,8 @@ void Engine::process(float* out, int numFrames) noexcept {
     granular_->updateLoad(blockLoad, static_cast<float>(numFrames) / static_cast<float>(cfg_.sampleRate));
   }
   publishStatus(numFrames, loadEma_, blockLoad);
+  dj_->fillStatus(djBuf_.writeSlot());
+  djBuf_.publish();
 }
 
 void Engine::processChunk(float* dst, int frames) noexcept {

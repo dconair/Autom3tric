@@ -37,6 +37,7 @@ RT_FILES = [
     "native/granular/include/autodj/granular/GrainKernels.h",
     "native/granular/src/GrainKernels.cpp",
     "native/engine/src/ToneNode.cpp",
+    "native/dj/include/autodj/dj/DjDsp.h",
 ]
 
 RT_FUNCTIONS = {
@@ -49,6 +50,11 @@ RT_FUNCTIONS = {
     ],
     "native/core/include/autodj/core/Param.h": ["get", "getInt", "getBool"],
     "native/fx/src/ChaosFx.cpp": ["map", "reset", "clearReverb", "clearFlanger", "process"],
+    "native/dj/src/Deck.cpp": ["setTrack", "play", "pause", "seek", "heardFrames", "fillInput", "startStream", "process"],
+    "native/dj/src/DjNode.cpp": [
+        "setParams", "release", "clearManualDecks", "finishPlan", "stopPlan", "handleCommand", "trimGain", "crossfaderGains",
+        "tone", "processLive", "startItem", "fireDue", "renderPlanBlock", "processPlan", "process", "fillStatus",
+    ],
 }
 
 # --------------------------------------------------------------------------------------------------

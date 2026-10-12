@@ -32,6 +32,9 @@ autodj_add_test(test_analysis
   test_tracks.cpp)
 target_link_libraries(test_analysis PRIVATE autodj_analysis)
 
+autodj_add_test(test_dj
+  test_dj.cpp)
+
 autodj_add_test(test_engine
   test_engine.cpp
   test_golden.cpp)

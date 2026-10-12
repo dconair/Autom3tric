@@ -30,6 +30,9 @@
 #include "autodj/core/Status.h"
 #include "autodj/core/Transport.h"
 #include "autodj/core/TripleBuffer.h"
+#include "autodj/dj/DjNode.h"
+#include "autodj/dj/DjStatus.h"
+#include "autodj/dj/MixPlan.h"
 #include "autodj/engine/ToneNode.h"
 #include "autodj/engine/Tracks.h"
 #include "autodj/granular/GranularNode.h"
@@ -50,6 +53,7 @@ struct EngineParamIds {
   ParamId masterGain = kInvalidParam;
   ToneParamIds tone;
   granular::GranularParamIds granular;
+  dj::DjParamIds dj;
 };
 
 class Engine {
@@ -94,6 +98,21 @@ class Engine {
   std::shared_ptr<const Track> track(int id) const;
   void removeTrack(int id);
   std::size_t trackCount() const;
+
+  // ---- DJ decks and automatic mix ----------------------------------------------------------------
+  /// Loads a track into deck 0/1 (null = unload). The engine keeps it alive until the audio thread returns it.
+  bool deckLoad(int deck, std::shared_ptr<const Track> track, double startSec = 0.0);
+  bool deckPlay(int deck, bool play);
+  bool deckSeek(int deck, double seconds);
+  /// Plans a mix of the given tracks in this order (unknown ids are skipped). Pure computation, nothing is started.
+  std::shared_ptr<const dj::MixPlan> planMix(const std::vector<int>& trackIds, const dj::PlanOptions& options) const;
+  /// Starts a plan on the decks (stops decks and plans that are running). The engine keeps the plan alive.
+  bool planStart(std::shared_ptr<const dj::MixPlan> plan);
+  bool planStop();
+  bool readDjStatus(dj::DjStatus& out);
+  dj::DjNode& djNode() { return *dj_; }
+  std::size_t heldTrackCount() const;
+  std::size_t heldPlanCount() const;
 
   /// Replaces the processing graph (pointer swap on the audio thread). Previous graph is freed here.
   bool publishGraph(std::unique_ptr<GraphDesc> graph);
@@ -142,13 +161,21 @@ class Engine {
   Transport transport_;
   std::unique_ptr<ToneNode> tone_;
   std::unique_ptr<granular::GranularNode> granular_;
-  Node* allNodes_[2] = {};
+  std::unique_ptr<dj::DjNode> dj_;
+  Node* allNodes_[3] = {};
   const GraphDesc* graph_ = nullptr;
 
   mutable std::mutex ownerMutex_;  // control-side ownership tables
   std::unordered_map<const SampleBuffer*, std::shared_ptr<const SampleBuffer>> heldBuffers_;
   std::shared_ptr<const SampleBuffer> slotBuffers_[16];  // latest buffer per slot, for the UI overview only
   std::unordered_map<const GraphDesc*, std::unique_ptr<GraphDesc>> heldGraphs_;
+  struct HeldTrack {
+    std::shared_ptr<const Track> track;
+    int refs = 0;  // loads that the audio thread has not handed back yet
+  };
+  std::unordered_map<const Track*, HeldTrack> heldTracks_;
+  std::unordered_map<const dj::MixPlan*, std::shared_ptr<const dj::MixPlan>> heldPlans_;
+  std::uint32_t nextPlanId_ = 1;
   std::uint32_t graphVersion_ = 0;
   mutable std::mutex trackMutex_;
   std::unordered_map<int, std::shared_ptr<const Track>> tracks_;
@@ -156,6 +183,7 @@ class Engine {
 
   TripleBuffer<EngineStatus> statusBuf_;
   TripleBuffer<GrainViz> vizBuf_;
+  TripleBuffer<dj::DjStatus> djBuf_;
   std::mutex readMutex_;
 
   // audio-thread state

@@ -26,6 +26,11 @@ enum class CmdType : std::uint8_t {
   SwapGraph,      // payload.ptr = const GraphDesc*
   ResetEngine,    // clears voices, grains, transport phase
   StepReset,      // target = granular voice: restart its step sequence at cell 0 (aligned to the next grid step)
+  DeckLoad,       // target = deck 0/1, payload.ptr = const Track* (null = unload), f0 = start position in seconds
+  DeckPlay,       // target = deck, i0 = 1 play from the current position, 0 pause
+  DeckSeek,       // target = deck, payload.d = seconds
+  PlanStart,      // payload.ptr = const MixPlan* (kept alive by the control side until the audio thread returns it)
+  PlanStop,       // stop the running mix plan (decks it started are cleared)
 };
 
 struct Command {
@@ -50,7 +55,7 @@ struct Command {
 static_assert(sizeof(Command) <= 32, "keep commands small: they are copied through the queue");
 
 struct GarbageMsg {
-  enum class Kind : std::uint8_t { SampleBuffer, Graph };
+  enum class Kind : std::uint8_t { SampleBuffer, Graph, Track, Plan };
   Kind kind = Kind::SampleBuffer;
   const void* ptr = nullptr;
 };
