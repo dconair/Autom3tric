@@ -109,4 +109,4 @@ docs/            ARCHITECTURE.md, AUDIO_THREAD_RULES.md, BENCHMARKS.md, results/
 ## Lizenzen der Abhängigkeiten
 
 nlohmann/json (MIT), GoogleTest (BSD-3), Oboe (Apache-2.0). Geplant: Signalsmith Stretch (MIT) für Time-Stretching.
-Eine Lizenz für den Projektcode selbst ist noch nicht gewählt.
+Der Projektcode steht unter der Apache License 2.0 (siehe [LICENSE](LICENSE)).
