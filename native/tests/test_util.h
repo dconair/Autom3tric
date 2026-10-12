@@ -15,6 +15,10 @@ namespace testutil {
 
 constexpr double kPi = 3.14159265358979323846;
 
+/// Makes `p` (and what it points at) observable to the optimizer. Clang is allowed to drop a new/delete pair whose
+/// storage never escapes ([expr.new]); a test that wants the allocation to really reach operator new must call this.
+inline void escape(const void* p) { asm volatile("" : : "g"(p) : "memory"); }
+
 /// Installs a handler that counts audio-thread violations instead of aborting.
 struct ViolationCounter {
   ViolationCounter() {

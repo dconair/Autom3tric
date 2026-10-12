@@ -34,6 +34,7 @@ TEST(RtGuard, ContainerGrowthIsCaught) {
   rt::AudioThreadScope scope;
   std::vector<int> v;
   v.push_back(1);
+  testutil::escape(v.data());  // clang may otherwise elide the allocation behind push_back
   EXPECT_GE(counter.count(), 1u);
 }
 
@@ -62,8 +63,8 @@ TEST(RtGuardDeathTest, DefaultHandlerAbortsImmediately) {
   EXPECT_DEATH(
       {
         rt::AudioThreadScope scope;
-        volatile int* p = new int(1);
-        (void)p;
+        int* p = new int(1);
+        testutil::escape(p);  // an unobserved new may be elided by clang, then nothing aborts
       },
       "RT VIOLATION");
 }
