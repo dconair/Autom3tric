@@ -1,3 +1,25 @@
   seed 1 ok (4000 callbacks)
   seed 2 ok (4000 callbacks)
   seed 3 ok (4000 callbacks)
+== fuzz phase: 300 seeds x 4000 callbacks (deterministic, single thread): 0 failing ==
+  [free ]     0 s audio, rss 16080 kB, active grains 8
+  [free ]  7319 s audio, rss 43508 kB, active grains 11
+
+== free phase: 600 s of audio in 30.0 s wall (20x), 1398858 callbacks ==
+  control thread : 69687 param writes, 17388 notes, 9195 source swaps (0 rejected/queue full), 5715 preset round trips, 3511 graph swaps, 7033 transport, 124 resets
+  callback time  : mean 20.6 us, p99 (sampled) 159.3 us, max 4859.4 us; virtual xruns 2 (callback > its buffer duration)
+  memory         : rss after warm-up 43508 kB, peak 43508 kB, end 49868 kB
+  ownership      : 16 buffers / 1 graphs still held (limit 16 / 2); active grains at end 1
+  rt violations  : 0
+  [paced]     0 s audio, rss 22080 kB, active grains 8
+  [paced]    10 s audio, rss 47352 kB, active grains 0
+  [paced]    20 s audio, rss 46124 kB, active grains 3
+  [paced]    30 s audio, rss 48992 kB, active grains 0
+  [paced]    40 s audio, rss 49828 kB, active grains 0
+  [paced]    50 s audio, rss 48788 kB, active grains 0
+  [paced]    60 s audio, rss 47932 kB, active grains 0
+  [paced]    70 s audio, rss 50268 kB, active grains 12
+  [paced]    80 s audio, rss 51540 kB, active grains 0
+  [paced]    90 s audio, rss 53220 kB, active grains 0
+  [paced]   100 s audio, rss 45456 kB, active grains 2
+  [paced]   110 s audio, rss 55684 kB, active grains 5
