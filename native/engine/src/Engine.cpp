@@ -142,6 +142,42 @@ bool Engine::sourceInfo(int slot, double* seconds, int* sampleRate, std::string*
   return true;
 }
 
+int Engine::addTrack(std::shared_ptr<const SampleBuffer> audio, const std::string& name, const analysis::TrackAnalysis* cached,
+                     const analysis::ProgressFn& progress) {
+  if (!audio || audio->frames() <= 0) return 0;
+  auto t = std::make_shared<Track>();
+  t->name = name;
+  t->audio = audio;
+  if (cached != nullptr) {
+    t->analysis = *cached;
+    if (progress) progress(1.f);
+  } else {
+    t->analysis = analysis::analyzeTrack(audio->data(), audio->frames(), audio->sampleRate(), {}, progress);
+  }
+  t->peaks = analysis::PeakPyramid(*audio);
+  std::lock_guard<std::mutex> lk(trackMutex_);
+  t->id = nextTrackId_++;
+  const int id = t->id;
+  tracks_[id] = std::move(t);
+  return id;
+}
+
+std::shared_ptr<const Track> Engine::track(int id) const {
+  std::lock_guard<std::mutex> lk(trackMutex_);
+  auto it = tracks_.find(id);
+  return it == tracks_.end() ? nullptr : it->second;
+}
+
+void Engine::removeTrack(int id) {
+  std::lock_guard<std::mutex> lk(trackMutex_);
+  tracks_.erase(id);
+}
+
+std::size_t Engine::trackCount() const {
+  std::lock_guard<std::mutex> lk(trackMutex_);
+  return tracks_.size();
+}
+
 bool Engine::publishGraph(std::unique_ptr<GraphDesc> graph) {
   if (!graph) return false;
   graph->version = ++graphVersion_;

@@ -32,17 +32,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.AutoDjViewModel
+import com.autodj.app.ui.dj.LibraryScreen
 import java.util.Locale
 
 private enum class Tab(val label: String, val glyph: String) {
+    Library("Bibliothek", "≣"),
     Granular("Granular", "◌"),
     Params("Params", "≡"),
-    Transport("Mix", "♪"),
+    Transport("Transport", "♪"),
     Debug("Debug", "⚙"),
 }
 
 @Composable
-fun AutoDjApp(vm: AutoDjViewModel) {
+fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -62,6 +64,11 @@ fun AutoDjApp(vm: AutoDjViewModel) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (Tab.entries[tab]) {
+                Tab.Library -> LibraryScreen(
+                    vm.dj,
+                    onPickFiles = onPickFiles,
+                    onGranular = { item -> vm.sendToGranular(item) { ok -> if (ok) tab = Tab.Granular.ordinal } },
+                )
                 Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })
                 Tab.Params -> GranularScreen(vm)
                 Tab.Transport -> TransportScreen(vm)

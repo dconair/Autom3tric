@@ -1,6 +1,7 @@
 # Platform layer: audio driver + JNI bridge, packaged as the shared library the JVM loads (libautodj_native).
 #   Android: Oboe driver (Oboe comes from Gradle, com.google.oboe:oboe via Prefab - see app/build.gradle.kts)
 #   macOS:   CoreAudio driver, used by the desktop app (desktopApp/); enable with -DAUTODJ_BUILD_JNI=ON
+#   other:   null driver (no sound), for tests; enable with -DAUTODJ_BUILD_JNI=ON
 if(ANDROID)
   find_package(oboe REQUIRED CONFIG)
 
@@ -25,5 +26,13 @@ elseif(APPLE)
   # The JVM looks for libautodj_native.dylib (System.load / java.library.path).
   set_target_properties(autodj_native PROPERTIES OUTPUT_NAME autodj_native)
 else()
-  message(FATAL_ERROR "AUTODJ_BUILD_JNI is only implemented for Android and macOS")
+  # Linux (and other hosts): no audio device, JNI layer only. Lets the Kotlin tests and CI exercise the whole stack
+  # (import, analysis, mixing through nativeRenderOffline) without hardware.
+  find_package(JNI REQUIRED)
+
+  add_library(autodj_native SHARED jni/NativeBridge.cpp)
+  target_include_directories(autodj_native PRIVATE null jni ${JNI_INCLUDE_DIRS})
+  autodj_enable_rt_guard(autodj_native)
+  target_link_libraries(autodj_native PRIVATE autodj_engine autodj_bench)
+  set_target_properties(autodj_native PROPERTIES OUTPUT_NAME autodj_native)
 endif()

@@ -22,6 +22,10 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(libs.org.json)
+    // Java Sound providers for the formats the JDK cannot read: MP3, FLAC, Ogg Vorbis (macOS uses afconvert first)
+    implementation(libs.mp3spi)
+    implementation(libs.jflac.codec)
+    implementation(libs.vorbisspi)
     testImplementation(kotlin("test"))
 }
 
@@ -33,6 +37,13 @@ val syncSharedSources = tasks.register<Sync>("syncSharedSources") {
             "com/autodj/app/audio/EngineStatus.kt",
             "com/autodj/app/audio/NativeEngine.kt",
             "com/autodj/app/audio/ParamSpec.kt",
+            "com/autodj/app/dj/DjController.kt",
+            "com/autodj/app/dj/DjTheme.kt",
+            "com/autodj/app/dj/LibraryStore.kt",
+            "com/autodj/app/dj/TrackDecoder.kt",
+            "com/autodj/app/dj/TrackModels.kt",
+            "com/autodj/app/ui/dj/DjTabBar.kt",
+            "com/autodj/app/ui/dj/LibraryScreen.kt",
             "com/autodj/app/ui/Theme.kt",
             "com/autodj/app/ui/InstrumentControls.kt",
             "com/autodj/app/ui/InstrumentScreen.kt",
@@ -69,6 +80,18 @@ val buildNative = tasks.register<Exec>("buildNative") {
     outputs.dir(nativeResources)
     commandLine("sh", "build-native-macos.sh", layout.buildDirectory.get().asFile.absolutePath)
 }
+// The same JNI library for Linux (null audio driver), so that the import/analysis tests run on a Linux machine too.
+val isLinux = System.getProperty("os.name").lowercase().contains("linux")
+val buildNativeLinux = tasks.register<Exec>("buildNativeLinux") {
+    group = "build"
+    description = "Builds libautodj_native.so (no audio output) for the Linux test run"
+    onlyIf { isLinux }
+    inputs.dir("../native")
+    inputs.file("../CMakeLists.txt")
+    inputs.file("build-native-linux.sh")
+    outputs.dir(layout.buildDirectory.dir("native-resources/linux"))
+    commandLine("sh", "build-native-linux.sh", layout.buildDirectory.get().asFile.absolutePath)
+}
 tasks.matching { it.name == "run" || it.name.startsWith("prepareAppResources") || it.name.startsWith("package") ||
     it.name.startsWith("createDistributable") || it.name.startsWith("createRuntimeImage") }
     .configureEach { dependsOn(buildNative) }
@@ -98,5 +121,9 @@ tasks.withType<Test>().configureEach {
         // the JNI smoke tests load the freshly built dylib
         dependsOn(buildNative)
         systemProperty("autodj.native.path", nativeResources.get().file("macos/libautodj_native.dylib").asFile.absolutePath)
+    } else if (isLinux) {
+        dependsOn(buildNativeLinux)
+        systemProperty("autodj.native.path", nativeResources.get().file("linux/libautodj_native.so").asFile.absolutePath)
     }
+    systemProperty("autodj.fixtureDir", layout.projectDirectory.dir("src/test/fixtures").asFile.absolutePath)
 }

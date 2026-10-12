@@ -135,6 +135,23 @@ Grenzen (ehrlich): Der RT-Wächter ist in der macOS-Bibliothek aus (Release). Co
 geschätzt, nicht gemessen. Ob der Treiber unter Last, bei Gerätewechsel (Kopfhörer) und auf Intel-Macs gut läuft, ist ungeprüft; die CI hat keine
 Audiohardware. Keine Signierung/Notarisierung (dafür braucht es ein Apple-Developer-Konto).
 
+## 5c. Bibliothek, Import und Analyse (M3)
+
+Mehrere Songs in eine Liste laden; jeder wird dekodiert, analysiert und mit Wellenform in der Bibliothek angezeigt.
+
+| Schritt | Wo | Was |
+|---|---|---|
+| Dateiwahl | Android `OpenMultipleDocuments` (dauerhafte URI-Rechte), Mac `FileDialog` (Mehrfachauswahl) | Pfade/URIs gehen als Strings an den `DjController` |
+| Dekodieren | Android `MediaExtractor`+`MediaCodec` (`AndroidTrackDecoder`); Mac WAV direkt, sonst `afconvert` (MP3, M4A/AAC, FLAC, AIFF), danach Java-Sound-Provider (MP3, FLAC, Ogg), zuletzt `ffmpeg` falls vorhanden (`DesktopTrackDecoder`) | liefert Float-PCM in Blöcken an `PcmSink` |
+| Import in den Kern | JNI `nativeIngest*`, `TrackIngest` | Mono wird verdoppelt, Surround auf Stereo gemischt, Kaiser-Sinc-Resampler (`Resampler`) auf die Engine-Rate |
+| Analyse | `native/analysis` | Tempo (Onset-Autokorrelation, 75–185 BPM, Prior um 124), Beat-Raster (robuste Geradenanpassung an Onsets), erster Taktschlag (Bass-Fluss), Tonart (Chroma + Krumhansl-Schmuckler, Camelot), Energie je Takt, Abschnitte (Intro/Drop/Break/Outro), Mix-Ein-/Ausstiegspunkt, Lautheit/Trim |
+| Wellenform | `PeakPyramid` (Blöcke à 64, ×4-Stufen) | Übersicht für die Liste, später Zoom in den Decks |
+| Speicher | `JsonLibraryStore` (`library.json`) | nur Analyse und Übersicht, nie das Audio; beim Laden wird ein Song neu dekodiert, die Analyse entfällt |
+
+Abweichung: Die Bibliothek liegt als JSON, nicht in Room, damit sie auf Android und Mac derselbe Code ist. Die Analyse wurde mit synthetischen Songs
+(Tempo, Tonart, Aufbau bekannt) und mit Rauschen/Stille getestet, **nicht mit echter Musik** – wie gut sie bei Live-Aufnahmen, Swing oder
+Tempowechseln ist, zeigt erst ein Test mit deinen Songs. Songs ohne erkennbares Tempo bleiben importierbar und werden als solche markiert.
+
 ## 6. Wichtige Entscheidungen
 
 | Entscheidung | Begründung | Alternative / Preis |
@@ -157,7 +174,7 @@ Audiohardware. Keine Signierung/Notarisierung (dafür braucht es ein Apple-Devel
   **Host-Werte** (x86_64-Xeon, SSE2). Das NEON-Pfad wird per QEMU auf Korrektheit geprüft (siehe BENCHMARKS.md), nicht auf
   Geschwindigkeit. Die Zielwerte (≥ 256 Grains < 15 % auf Snapdragon 7, Latenz < 20 ms, Touch-zu-Ton < 30 ms) sind damit
   **noch nicht nachgewiesen**; der Benchmark-Knopf im Debug-Tab liefert die Zahlen auf dem Gerät.
-* Quellen sind vorerst synthetisch (`DemoSources`: Akkord-Pad, Drumloop, Rauschen, Sinus); Import/Dekodierung kommt mit M3.
+* Das Granular-Instrument hat vier synthetische Quellen (`DemoSources`) und nimmt zusätzlich Songs aus der Bibliothek (Slots 4–15).
 * Audio-Fokus, Foreground-Service und Kopfhörer-Routing-UI fehlen noch (Stream-Neustart bei Disconnect ist drin).
 * Perfetto/Simpleperf-Profiling: Hooks nicht nötig (reiner C++-Aufruf), Anleitung folgt zusammen mit den ersten Gerätedaten.
 * Nodes außer Granular/Testton, Modulations-Matrix (der Hook steht in `GranularNode::setParams`) und Projekt-JSON folgen.
@@ -168,7 +185,7 @@ Audiohardware. Keine Signierung/Notarisierung (dafür braucht es ein Apple-Devel
 |---|---|---|
 | 1 ✔ | Setup, Oboe, Audio-Thread-Regeln, Queues, Registry, Transport | `core/`, `platform/`, Guard, Lint, Tests |
 | 2 ✔ | Granular-Prototyp mit Benchmarks | `granular/`, `bench/`, Stresstest |
-| 3 | Import, Dekodierung (AMediaExtractor/Codec), Wellenform, Analyse (BPM, Beat-Grid, Key) | `SampleBuffer` (Float, Guard-Frames), `SourceTable`, Garbage-Queue; geplant: pffft (FFT), Peak-Pyramide |
+| 3 ✔ | Import, Dekodierung (MediaCodec / afconvert / Java Sound), Wellenform, Analyse (BPM, Beat-Grid, Tonart, Energie, Aufbau) | siehe 5c; synthetisch getestet, nicht mit echter Musik |
 | 4 | Wiedergabe mit Beat-Matching, Crossfade | `Transport`, `GraphDesc`-Swap, Node-Interface; geplant: Signalsmith Stretch (MIT) |
 | 5 | Auto-Mix, Übergangstypen, Offline-Export | `Engine` mit `realtime=false`, `render_cli`, Golden-Test „Export = Vorschau“ |
 | 6 | Timeline-Editor, Effekt-Rack, Automation | Registry (`automatable`-Flag), Command-Queue, Projekt-JSON nach Preset-Muster |

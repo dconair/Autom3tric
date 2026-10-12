@@ -37,6 +37,19 @@ internal object NativeEngine {
     @JvmStatic external fun nativePollStatus(handle: Long, out: DoubleArray): Boolean
     @JvmStatic external fun nativePollViz(handle: Long, out: FloatArray): Boolean
 
+    // ---- tracks: import (decoded PCM in, analysis out), waveform, granular source ----
+    @JvmStatic external fun nativeIngestBegin(handle: Long, srcRate: Int, channels: Int): Int
+    @JvmStatic external fun nativeIngestAppend(handle: Long, ticket: Int, data: FloatArray, count: Int): Boolean
+    @JvmStatic external fun nativeIngestFinish(handle: Long, ticket: Int, name: String, cachedJson: String, keep: Boolean, overviewColumns: Int): String
+    @JvmStatic external fun nativeIngestCancel(handle: Long, ticket: Int)
+    @JvmStatic external fun nativeIngestProgress(handle: Long, ticket: Int): Int
+    @JvmStatic external fun nativeTrackJson(handle: Long, trackId: Int, overviewColumns: Int): String
+    @JvmStatic external fun nativeTrackPeaks(handle: Long, trackId: Int, startSec: Double, endSec: Double, columns: Int, out: FloatArray): Boolean
+    @JvmStatic external fun nativeTrackRelease(handle: Long, trackId: Int)
+    @JvmStatic external fun nativeTrackToSource(handle: Long, trackId: Int, slot: Int): Boolean
+    @JvmStatic external fun nativeAddDemoTrack(handle: Long, kind: Int, keep: Boolean, overviewColumns: Int): String
+    @JvmStatic external fun nativeRenderOffline(handle: Long, frames: Int, out: FloatArray): Int
+
     @JvmStatic external fun nativeRunBenchmark(quick: Boolean): String
     @JvmStatic external fun nativeBenchmarkProgress(): Int
 }

@@ -10,6 +10,9 @@ junit = "4.13.2"
 orgJson = "20250517"
 composeMultiplatform = "1.9.1"
 robolectric = "4.14.1"
+mp3spi = "1.9.5.4"
+jflac = "1.5.2"
+vorbisspi = "1.0.3.3"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -25,6 +28,9 @@ androidx-compose-material-icons-core = { module = "androidx.compose.material:mat
 oboe = { module = "com.google.oboe:oboe", version.ref = "oboe" }
 junit = { module = "junit:junit", version.ref = "junit" }
 org-json = { module = "org.json:json", version.ref = "orgJson" }
+mp3spi = { module = "com.googlecode.soundlibs:mp3spi", version.ref = "mp3spi" }
+jflac-codec = { module = "org.jflac:jflac-codec", version.ref = "jflac" }
+vorbisspi = { module = "com.googlecode.soundlibs:vorbisspi", version.ref = "vorbisspi" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }

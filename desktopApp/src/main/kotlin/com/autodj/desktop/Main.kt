@@ -10,19 +10,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.autodj.app.dj.DjColors
 import com.autodj.app.ui.AutoDjTheme
 import com.autodj.app.ui.InstrumentScreen
-import com.autodj.app.ui.Palette
+import com.autodj.app.ui.dj.DjTabBar
+import com.autodj.app.ui.dj.LibraryScreen
 import kotlinx.coroutines.delay
+import java.awt.FileDialog
+import java.io.File
 import java.util.Locale
+
+private val Tabs = listOf("Bibliothek", "Granular")
 
 fun main() = application {
     val host = remember {
@@ -34,32 +43,68 @@ fun main() = application {
             exitApplication()
         },
         title = "AutoDJ",
-        state = rememberWindowState(size = DpSize(1100.dp, 760.dp)),
+        state = rememberWindowState(size = DpSize(1180.dp, 800.dp)),
     ) {
         AutoDjTheme { DesktopApp(host) }
     }
 }
 
+/** The native "Songs hinzufügen" dialog (multi-select). Blocks until the user is done; returns absolute paths. */
+private fun FrameWindowScope.pickAudioFiles(): List<String> {
+    val dialog = FileDialog(window, "Songs hinzufügen", FileDialog.LOAD)
+    dialog.isMultipleMode = true
+    dialog.setFilenameFilter { _, name -> name.substringAfterLast('.', "").lowercase() in AudioExtensions }
+    dialog.isVisible = true
+    return dialog.files.orEmpty().map(File::getAbsolutePath)
+}
+
+private val AudioExtensions = setOf("mp3", "wav", "wave", "flac", "ogg", "oga", "m4a", "aac", "aif", "aiff", "caf", "mp4")
+
 @Composable
-private fun DesktopApp(host: DesktopHost) {
+private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
+    var tab by remember { mutableIntStateOf(0) }
     LaunchedEffect(host) {
         while (true) {
             delay(33)
             host.poll()
         }
     }
-    Column(Modifier.fillMaxSize().background(Palette.body)) {
-        Box(Modifier.weight(1f)) { InstrumentScreen(host) }
-        val d = host.driver
-        val s = host.status
-        val line = host.message ?: if (d.running) {
-            String.format(
-                Locale.US, "%s · %d Hz · buffer %d frames · latency ≈ %.1f ms · CPU %.1f %% · %d grains · SIMD %s",
-                d.api, d.sampleRate, d.framesPerBurst, d.latencyMs, s.load * 100.0, s.activeGrains, d.simd,
-            )
-        } else {
-            "audio stopped"
+    Column(Modifier.fillMaxSize().background(DjColors.bg)) {
+        DjTabBar(Tabs, tab, { tab = it }) { StatusChip(host) }
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                0 -> LibraryScreen(
+                    host.dj,
+                    onPickFiles = { host.dj.importSources(pickAudioFiles()) },
+                    onGranular = { item ->
+                        host.dj.sendToGranular(item) { slot, error ->
+                            if (slot != null) {
+                                host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
+                                tab = 1
+                            } else {
+                                host.report(error ?: "Konnte den Song nicht laden")
+                            }
+                        }
+                    },
+                )
+                else -> InstrumentScreen(host)
+            }
         }
-        Text(line, color = Palette.muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+        val m = host.message
+        if (m != null) {
+            Text(m, color = DjColors.warn, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().background(DjColors.panel).padding(horizontal = 16.dp, vertical = 6.dp))
+        }
     }
+}
+
+@Composable
+private fun StatusChip(host: DesktopHost) {
+    val d = host.driver
+    val s = host.status
+    val line = if (d.running) {
+        String.format(Locale.US, "%s · %d Hz · %.1f ms · CPU %.0f %%", d.api, d.sampleRate, d.latencyMs, s.load * 100.0)
+    } else {
+        "Audio aus"
+    }
+    Text(line, color = DjColors.muted, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
 }

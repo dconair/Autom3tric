@@ -28,7 +28,8 @@ autodj_add_test(test_granular
   test_chaos_fx.cpp)
 
 autodj_add_test(test_analysis
-  test_analysis.cpp)
+  test_analysis.cpp
+  test_tracks.cpp)
 target_link_libraries(test_analysis PRIVATE autodj_analysis)
 
 autodj_add_test(test_engine

@@ -60,6 +60,33 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
 
     fun sourceInfo(slot: Int): SourceInfo? = SourceInfo.fromJson(NativeEngine.nativeSourceInfo(handle, slot))
 
+    // ---- tracks ---------------------------------------------------------------------------------
+    // These calls are thread-safe on the native side and meant for a worker thread (decode/analysis takes seconds).
+
+    /** Starts a decode job; returns a ticket (0 = refused). */
+    fun ingestBegin(srcRate: Int, channels: Int): Int = NativeEngine.nativeIngestBegin(handle, srcRate, channels)
+    fun ingestAppend(ticket: Int, data: FloatArray, count: Int): Boolean = NativeEngine.nativeIngestAppend(handle, ticket, data, count)
+    /**
+     * Converts, analyses (or adopts [cachedAnalysisJson]) and returns the result JSON. [keep] = false forgets the audio again
+     * (library import), true leaves it registered as a track for decks / the granular instrument.
+     */
+    fun ingestFinish(ticket: Int, name: String, cachedAnalysisJson: String?, keep: Boolean, overviewColumns: Int = OVERVIEW_COLUMNS): String =
+        NativeEngine.nativeIngestFinish(handle, ticket, name, cachedAnalysisJson ?: "", keep, overviewColumns)
+    fun ingestCancel(ticket: Int) = NativeEngine.nativeIngestCancel(handle, ticket)
+    fun ingestProgress(ticket: Int): Int = NativeEngine.nativeIngestProgress(handle, ticket)
+    fun trackJson(trackId: Int, overviewColumns: Int = 0): String = NativeEngine.nativeTrackJson(handle, trackId, overviewColumns)
+    /** Min/max waveform of [startSec, endSec) in [columns] columns (peak pyramid), or null for an unknown track. */
+    fun trackPeaks(trackId: Int, startSec: Double, endSec: Double, columns: Int): FloatArray? {
+        val out = FloatArray(2 * columns)
+        return if (NativeEngine.nativeTrackPeaks(handle, trackId, startSec, endSec, columns, out)) out else null
+    }
+    fun trackRelease(trackId: Int) = NativeEngine.nativeTrackRelease(handle, trackId)
+    fun trackToGranularSource(trackId: Int, slot: Int): Boolean = NativeEngine.nativeTrackToSource(handle, trackId, slot)
+    fun addDemoTrack(kind: Int, keep: Boolean, overviewColumns: Int = OVERVIEW_COLUMNS): String =
+        NativeEngine.nativeAddDemoTrack(handle, kind, keep, overviewColumns)
+    /** Renders [frames] stereo frames without audio hardware (tests, export). Only while the audio output is stopped. */
+    fun renderOffline(frames: Int, out: FloatArray): Int = NativeEngine.nativeRenderOffline(handle, frames, out)
+
     fun pollStatus(): EngineStatus? =
         if (NativeEngine.nativePollStatus(handle, statusBuf)) EngineStatus.fromArray(statusBuf) else null
 
@@ -74,6 +101,8 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     }
 
     companion object {
+        const val OVERVIEW_COLUMNS = 512
+
         /** Runs the native granular benchmark on the calling thread (call it from a background dispatcher). */
         fun runBenchmark(quick: Boolean): BenchmarkResult {
             val o = JSONObject(NativeEngine.nativeRunBenchmark(quick))

@@ -12,14 +12,32 @@ import com.autodj.app.audio.EngineStatus
 import com.autodj.app.audio.GrainVizSnapshot
 import com.autodj.app.audio.ParamSpec
 import com.autodj.app.audio.SourceInfo
+import com.autodj.app.dj.DjController
+import com.autodj.app.dj.JsonLibraryStore
+import com.autodj.app.ui.DemoSourceNames
 import com.autodj.app.ui.InstrumentHost
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import java.io.File
 
 /**
  * The desktop counterpart of AutoDjViewModel: owns the native engine, keeps one Compose state per parameter and
  * exposes the polled status / grain cloud. [poll] is called ~30 times a second from the UI.
  */
-class DesktopHost : InstrumentHost, AutoCloseable {
+class DesktopHost(libraryFile: File = defaultLibraryFile(), decoder: DesktopTrackDecoder = DesktopTrackDecoder()) : InstrumentHost, AutoCloseable {
     val engine = AudioEngine(48000, voices = 4)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** The track library with import and analysis; the Bibliothek tab and (later) the decks and the auto mix use it. */
+    val dj = DjController(engine, decoder, JsonLibraryStore(libraryFile), scope).also { dj ->
+        dj.onGranularSlotLoaded = { slot ->
+            peaksCache.remove(slot)
+            infoCache.remove(slot)
+            sourceVersion++
+        }
+    }
     private val specs: List<ParamSpec> = engine.specs
     private val paramStates = specs.map { mutableFloatStateOf(engine.getParam(it.id)) }
 
@@ -35,6 +53,7 @@ class DesktopHost : InstrumentHost, AutoCloseable {
 
     private val peaksCache = HashMap<Int, FloatArray?>()
     private val infoCache = HashMap<Int, SourceInfo?>()
+    private var sourceVersion by mutableIntStateOf(0)
     private var tick = 0
 
     init {
@@ -56,6 +75,11 @@ class DesktopHost : InstrumentHost, AutoCloseable {
         val r = engine.start()
         message = if (r == 0) null else "Audio output could not be opened (CoreAudio status $r): ${engine.driverInfo().lastError}"
         driver = engine.driverInfo()
+    }
+
+    /** Shows a message under the content until the next one (errors of background work). */
+    fun report(text: String) {
+        message = text
     }
 
     fun stopAudio() {
@@ -82,15 +106,32 @@ class DesktopHost : InstrumentHost, AutoCloseable {
     override fun noteOn(voice: Int, pitch: Float, velocity: Float) = engine.noteOn(voice, pitch, velocity)
     override fun noteOff(voice: Int) = engine.noteOff(voice)
     override fun resetSteps(voice: Int) = engine.resetSteps(voice)
-    override fun peaksFor(slot: Int): FloatArray? = peaksCache.getOrPut(slot) { engine.sourcePeaks(slot, PEAK_COLUMNS) }
-    override fun sourceInfoFor(slot: Int): SourceInfo? = infoCache.getOrPut(slot) { engine.sourceInfo(slot) }
+    override fun peaksFor(slot: Int): FloatArray? {
+        sourceVersion  // re-read when a slot changes
+        return peaksCache.getOrPut(slot) { engine.sourcePeaks(slot, PEAK_COLUMNS) }
+    }
+
+    override fun sourceInfoFor(slot: Int): SourceInfo? {
+        sourceVersion
+        return infoCache.getOrPut(slot) { engine.sourceInfo(slot) }
+    }
+
+    override val sourceNames: List<String> get() = DemoSourceNames + dj.granularSlots.map { it.name }
 
     override fun close() {
+        scope.cancel()
         engine.stop()
         engine.close()
     }
 
-    private companion object {
-        const val PEAK_COLUMNS = 512
+    companion object {
+        private const val PEAK_COLUMNS = 512
+
+        /** ~/Library/Application Support/AutoDJ/library.json on macOS, ~/.autodj/library.json elsewhere. */
+        fun defaultLibraryFile(): File {
+            val home = File(System.getProperty("user.home") ?: ".")
+            val mac = System.getProperty("os.name").lowercase().contains("mac")
+            return if (mac) File(home, "Library/Application Support/AutoDJ/library.json") else File(home, ".autodj/library.json")
+        }
     }
 }

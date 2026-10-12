@@ -31,6 +31,7 @@
 #include "autodj/core/Transport.h"
 #include "autodj/core/TripleBuffer.h"
 #include "autodj/engine/ToneNode.h"
+#include "autodj/engine/Tracks.h"
 #include "autodj/granular/GranularNode.h"
 
 namespace autodj {
@@ -84,6 +85,15 @@ class Engine {
   /// Control thread; reads the immutable buffer, never touches the audio thread.
   bool sourcePeaks(int slot, int columns, float* out) const;
   bool sourceInfo(int slot, double* seconds, int* sampleRate, std::string* name) const;
+
+  // ---- tracks (decoded + analysed songs) ------------------------------------------------------
+  /// Analyses `audio` (or adopts `cached` when given), builds its peak pyramid and registers it. Returns the track id (> 0).
+  /// Control/worker thread; the analysis takes about a second per track, nothing else is blocked meanwhile.
+  int addTrack(std::shared_ptr<const SampleBuffer> audio, const std::string& name, const analysis::TrackAnalysis* cached = nullptr,
+               const analysis::ProgressFn& progress = {});
+  std::shared_ptr<const Track> track(int id) const;
+  void removeTrack(int id);
+  std::size_t trackCount() const;
 
   /// Replaces the processing graph (pointer swap on the audio thread). Previous graph is freed here.
   bool publishGraph(std::unique_ptr<GraphDesc> graph);
@@ -140,6 +150,9 @@ class Engine {
   std::shared_ptr<const SampleBuffer> slotBuffers_[16];  // latest buffer per slot, for the UI overview only
   std::unordered_map<const GraphDesc*, std::unique_ptr<GraphDesc>> heldGraphs_;
   std::uint32_t graphVersion_ = 0;
+  mutable std::mutex trackMutex_;
+  std::unordered_map<int, std::shared_ptr<const Track>> tracks_;
+  int nextTrackId_ = 1;
 
   TripleBuffer<EngineStatus> statusBuf_;
   TripleBuffer<GrainViz> vizBuf_;

@@ -20,5 +20,6 @@ fun AutoDjViewModel.asInstrumentHost(): InstrumentHost {
         override fun resetSteps(voice: Int) = vm.resetSteps(voice)
         override fun peaksFor(slot: Int) = vm.peaksFor(slot, vm.peaksVersion)
         override fun sourceInfoFor(slot: Int) = vm.sourceInfoFor(slot, vm.peaksVersion)
+        override val sourceNames get() = DemoSourceNames + vm.dj.granularSlots.map { it.name }
     }
 }

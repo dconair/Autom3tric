@@ -17,11 +17,16 @@ import com.autodj.app.audio.EngineStatus
 import com.autodj.app.audio.GrainVizSnapshot
 import com.autodj.app.audio.ParamSpec
 import com.autodj.app.audio.SourceInfo
+import com.autodj.app.dj.AndroidTrackDecoder
+import com.autodj.app.dj.DjController
+import com.autodj.app.dj.JsonLibraryStore
+import com.autodj.app.dj.TrackItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Owns the native engine for the lifetime of the app process' UI. Parameter values live in one Compose state
@@ -31,6 +36,15 @@ import kotlinx.coroutines.withContext
 class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
     val engine = AudioEngine(deviceSampleRate(app), voices = 4)
     val specs: List<ParamSpec> = engine.specs
+
+    /** Track library: import, analysis, persistence. */
+    val dj = DjController(engine, AndroidTrackDecoder(app), JsonLibraryStore(File(app.filesDir, "library.json")), viewModelScope).also {
+        it.onGranularSlotLoaded = { slot ->
+            peaksCache.remove(slot)
+            infoCache.remove(slot)
+            peaksVersion++
+        }
+    }
 
     private val paramStates = specs.map { mutableFloatStateOf(engine.getParam(it.id)) }
     fun paramState(spec: ParamSpec) = paramStates[spec.id]
@@ -150,6 +164,18 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
         peaksVersion++
         return ok
     }
+    /** Makes a library song a source of the granular instrument and selects it on the current voice. */
+    fun sendToGranular(item: TrackItem, onDone: (Boolean) -> Unit = {}) {
+        dj.sendToGranular(item) { slot, error ->
+            if (slot != null) {
+                set("granular.v${selectedVoice}.source", slot.toFloat())
+            } else {
+                message = error
+            }
+            onDone(slot != null)
+        }
+    }
+
     fun resetSteps(voice: Int) = engine.resetSteps(voice)
     fun play() = engine.play()
     fun stopTransport() = engine.stopTransport()

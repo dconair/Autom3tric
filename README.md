@@ -11,7 +11,8 @@ Kotlin + Jetpack Compose für die Oberfläche, C++17 (NDK) für den gesamten Aud
 | 2 | Granular-Prototyp mit Benchmarks 64/128/256/512 Grains, Stresstest | **fertig** (Host-getestet) |
 | 2+ | Instrument-Oberfläche nach der genannten Referenz (Cells Hold/Step/Keys, Chaos, Output, dunkler Bildschirm) | **fertig** (Host- und JVM-getestet, nicht auf Gerät) |
 | 2++ | macOS-App: dieselbe Instrument-Oberfläche (Compose Multiplatform) auf derselben Engine, CoreAudio-Ausgabe, `.dmg` aus der CI | **gebaut und getestet in der CI, nie auf einem Mac gestartet** |
-| 3–9 | Import/Analyse, Beat-Matching, Auto-Mix, Editor, Drumpad, Granular-Feinschliff, Politur | offen, siehe [Roadmap](docs/ARCHITECTURE.md#8-roadmap-meilensteine-aus-der-spezifikation) |
+| 3 | Bibliothek: mehrere Songs importieren (MP3, WAV, FLAC, OGG, M4A), Analyse von BPM, Beat-Raster, Tonart, Energie, Aufbau, Wellenform | **fertig** (Host-, JVM- und CI-getestet mit synthetischen Songs und Testdateien, nicht mit echter Musik) |
+| 4–9 | Decks mit Beat-Matching, Auto-Mix, Effekte, Drumpad, Granular-Feinschliff, Politur | offen, siehe [Roadmap](docs/ARCHITECTURE.md#8-roadmap-meilensteine-aus-der-spezifikation) |
 
 **Ehrlich gesagt:** Die App wurde gebaut (Debug und Release, arm64-v8a + x86_64) und ihre JVM-Unit-Tests laufen, sie wurde
 aber **noch nie auf einem Gerät gestartet**. Alle Messwerte in diesem Repository sind **Host-Werte** (x86_64-Xeon, SSE2,

@@ -4,6 +4,7 @@ add_library(autodj_core STATIC
   src/Param.cpp
   src/ParamSerializer.cpp
   src/SampleBuffer.cpp
+  src/Resampler.cpp
   src/DemoSources.cpp
   src/RtGuard.cpp)
 target_include_directories(autodj_core PUBLIC include)

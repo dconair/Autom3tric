@@ -13,12 +13,15 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
 #include <nlohmann/json.hpp>
 
 #include "AudioDriver.h"
 #include "BenchCore.h"
+#include "autodj/analysis/AnalysisJson.h"
 #include "autodj/core/DemoSources.h"
 #include "autodj/core/RtGuard.h"
 #include "autodj/engine/Engine.h"
@@ -30,9 +33,19 @@ using autodj::platform::DriverOptions;
 
 namespace {
 
+/// One decode job: PCM chunks arrive from a Kotlin worker thread, finish() converts, analyses and registers the track.
+struct IngestJob {
+  autodj::TrackIngest ingest;
+  std::atomic<int> progress{0};  // percent, polled by the UI
+  IngestJob(int rate, int channels) : ingest(rate, channels) {}
+};
+
 struct EngineHandle {
   std::unique_ptr<Engine> engine;
   std::unique_ptr<AudioDriver> driver;
+  std::mutex ingestMutex;  // guards the map only, never the (long) conversion/analysis
+  std::unordered_map<int, std::shared_ptr<IngestJob>> ingests;
+  int nextTicket = 1;
 };
 
 EngineHandle* H(jlong h) { return reinterpret_cast<EngineHandle*>(h); }
@@ -254,5 +267,171 @@ JFN(jstring, nativeRunBenchmark)(JNIEnv* env, jclass, jboolean quick) {
 }
 
 JFN(jint, nativeBenchmarkProgress)(JNIEnv*, jclass) { return g_benchProgress.load(std::memory_order_relaxed); }
+
+}  // extern "C"
+
+// ---- tracks: import, analysis, waveform ---------------------------------------------------------
+
+namespace {
+
+nlohmann::json trackJson(const autodj::Track& t, int trackId, int overviewColumns) {
+  nlohmann::json j = {{"ok", true},
+                      {"trackId", trackId},
+                      {"name", t.name},
+                      {"durationSec", t.durationSec()},
+                      {"analysis", autodj::analysis::toJson(t.analysis)}};
+  if (overviewColumns > 0) {
+    std::vector<int> mn, mx;
+    autodj::trackOverview(t, overviewColumns, mn, mx);
+    j["overview"] = {{"min", mn}, {"max", mx}};
+  }
+  return j;
+}
+
+/// Registers the track, returns its JSON and (if !keep) drops it again, so the library only holds analysis results.
+std::string finishTrack(Engine& e, std::shared_ptr<const autodj::SampleBuffer> audio, const std::string& name,
+                        const autodj::analysis::TrackAnalysis* cached, bool keep, int overviewColumns,
+                        const autodj::analysis::ProgressFn& progress) {
+  if (!audio) return dumpJson({{"ok", false}, {"error", "no audio data (the file could not be decoded or is empty)"}});
+  const int id = e.addTrack(std::move(audio), name, cached, progress);
+  if (id == 0) return dumpJson({{"ok", false}, {"error", "track could not be registered"}});
+  const auto t = e.track(id);
+  const std::string out = dumpJson(trackJson(*t, keep ? id : 0, overviewColumns));
+  if (!keep) e.removeTrack(id);
+  return out;
+}
+
+}  // namespace
+
+extern "C" {
+
+JFN(jint, nativeIngestBegin)(JNIEnv*, jclass, jlong h, jint srcRate, jint channels) {
+  EngineHandle* p = H(h);
+  if (srcRate < 8000 || srcRate > 384000 || channels < 1 || channels > 16) return 0;
+  std::lock_guard<std::mutex> lk(p->ingestMutex);
+  const int t = p->nextTicket++;
+  p->ingests[t] = std::make_shared<IngestJob>(srcRate, channels);
+  return t;
+}
+
+JFN(jboolean, nativeIngestAppend)(JNIEnv* env, jclass, jlong h, jint ticket, jfloatArray data, jint count) {
+  EngineHandle* p = H(h);
+  std::shared_ptr<IngestJob> job;
+  {
+    std::lock_guard<std::mutex> lk(p->ingestMutex);
+    auto it = p->ingests.find(ticket);
+    if (it == p->ingests.end()) return JNI_FALSE;
+    job = it->second;
+  }
+  if (count <= 0 || env->GetArrayLength(data) < count) return JNI_FALSE;
+  jfloat* src = env->GetFloatArrayElements(data, nullptr);
+  if (!src) return JNI_FALSE;
+  job->ingest.append(src, static_cast<std::size_t>(count));
+  env->ReleaseFloatArrayElements(data, src, JNI_ABORT);
+  return JNI_TRUE;
+}
+
+/// Converts to stereo at the engine rate, analyses (or adopts `cachedJson`) and returns
+/// {"ok", "trackId", "name", "durationSec", "analysis": {...}, "overview": {"min": [...], "max": [...]}}.
+/// keep=false forgets the audio again (library import: only the analysis is stored); keep=true leaves the track
+/// registered under "trackId" for decks / the granular source.
+JFN(jstring, nativeIngestFinish)(JNIEnv* env, jclass, jlong h, jint ticket, jstring name, jstring cachedJson, jboolean keep,
+                                 jint overviewColumns) {
+  EngineHandle* p = H(h);
+  std::shared_ptr<IngestJob> job;
+  {
+    std::lock_guard<std::mutex> lk(p->ingestMutex);
+    auto it = p->ingests.find(ticket);
+    if (it == p->ingests.end()) return toJString(env, dumpJson({{"ok", false}, {"error", "unknown ticket"}}));
+    job = it->second;
+    p->ingests.erase(it);
+  }
+  const std::string nm = fromJString(env, name);
+  const std::string cj = fromJString(env, cachedJson);
+  autodj::analysis::TrackAnalysis cached;
+  bool haveCached = false;
+  if (!cj.empty()) {
+    const auto parsed = nlohmann::json::parse(cj, nullptr, false);
+    haveCached = !parsed.is_discarded() && autodj::analysis::fromJson(parsed, cached);
+  }
+  job->progress.store(5);
+  auto audio = job->ingest.finish(p->engine->sampleRate(), nm);
+  job->progress.store(15);
+  IngestJob* raw = job.get();
+  const auto prog = [raw](float f) { raw->progress.store(15 + static_cast<int>(85.f * f)); };
+  const std::string out = finishTrack(*p->engine, std::move(audio), nm, haveCached ? &cached : nullptr, keep == JNI_TRUE,
+                                      overviewColumns, prog);
+  job->progress.store(100);
+  return toJString(env, out);
+}
+
+JFN(void, nativeIngestCancel)(JNIEnv*, jclass, jlong h, jint ticket) {
+  EngineHandle* p = H(h);
+  std::lock_guard<std::mutex> lk(p->ingestMutex);
+  p->ingests.erase(ticket);
+}
+
+/// Percent of the current analysis (only meaningful while nativeIngestFinish runs on another thread).
+JFN(jint, nativeIngestProgress)(JNIEnv*, jclass, jlong h, jint ticket) {
+  EngineHandle* p = H(h);
+  std::lock_guard<std::mutex> lk(p->ingestMutex);
+  auto it = p->ingests.find(ticket);
+  return it == p->ingests.end() ? 100 : it->second->progress.load();
+}
+
+JFN(jstring, nativeTrackJson)(JNIEnv* env, jclass, jlong h, jint trackId, jint overviewColumns) {
+  const auto t = H(h)->engine->track(trackId);
+  if (!t) return toJString(env, dumpJson({{"ok", false}, {"error", "unknown track"}}));
+  return toJString(env, dumpJson(trackJson(*t, trackId, overviewColumns)));
+}
+
+/// Min/max waveform of [startSec, endSec) in `columns` columns (2 floats each) from the peak pyramid.
+JFN(jboolean, nativeTrackPeaks)(JNIEnv* env, jclass, jlong h, jint trackId, jdouble startSec, jdouble endSec, jint columns,
+                                jfloatArray out) {
+  if (columns <= 0 || columns > 8192 || env->GetArrayLength(out) < 2 * columns) return JNI_FALSE;
+  const auto t = H(h)->engine->track(trackId);
+  if (!t || !t->audio) return JNI_FALSE;
+  const double sr = t->audio->sampleRate();
+  std::vector<float> buf(static_cast<std::size_t>(columns) * 2);
+  t->peaks.query(*t->audio, static_cast<std::int64_t>(startSec * sr), static_cast<std::int64_t>(endSec * sr), columns, buf.data());
+  env->SetFloatArrayRegion(out, 0, 2 * columns, buf.data());
+  return JNI_TRUE;
+}
+
+JFN(void, nativeTrackRelease)(JNIEnv*, jclass, jlong h, jint trackId) { H(h)->engine->removeTrack(trackId); }
+
+/// Uses a registered track as the granular instrument's source in `slot` (0..15).
+JFN(jboolean, nativeTrackToSource)(JNIEnv*, jclass, jlong h, jint trackId, jint slot) {
+  const auto t = H(h)->engine->track(trackId);
+  if (!t || !t->audio) return JNI_FALSE;
+  return H(h)->engine->setSource(slot, t->audio) ? JNI_TRUE : JNI_FALSE;
+}
+
+/// Built-in synthetic songs (no file needed): kinds 0..3 differ in tempo and key. Same JSON as nativeIngestFinish.
+JFN(jstring, nativeAddDemoTrack)(JNIEnv* env, jclass, jlong h, jint kind, jboolean keep, jint overviewColumns) {
+  struct Demo { const char* name; double bpm; int root; bool minor; unsigned seed; };
+  static const Demo demos[4] = {
+      {"Demo 1 - Warm-up (A minor)", 118.0, 57, true, 1}, {"Demo 2 - Groove (E minor)", 122.0, 52, true, 2},
+      {"Demo 3 - Peak (C major)", 126.0, 60, false, 3},   {"Demo 4 - Late (D minor)", 124.0, 50, true, 4}};
+  const Demo& d = demos[(kind % 4 + 4) % 4];
+  autodj::demo::MusicSpec spec;
+  spec.bpm = d.bpm;
+  spec.rootMidi = d.root;
+  spec.minor = d.minor;
+  spec.seed = d.seed;
+  spec.sampleRate = H(h)->engine->sampleRate();
+  spec.name = d.name;
+  return toJString(env, finishTrack(*H(h)->engine, autodj::demo::musicTrack(spec), d.name, nullptr, keep == JNI_TRUE,
+                                    overviewColumns, {}));
+}
+
+/// Renders `frames` stereo frames offline into `out` (tests, export). Only while no audio driver is running.
+JFN(jint, nativeRenderOffline)(JNIEnv* env, jclass, jlong h, jint frames, jfloatArray out) {
+  if (frames <= 0 || env->GetArrayLength(out) < 2 * frames) return 0;
+  std::vector<float> buf(static_cast<std::size_t>(frames) * 2);
+  H(h)->engine->process(buf.data(), frames);
+  env->SetFloatArrayRegion(out, 0, 2 * frames, buf.data());
+  return frames;
+}
 
 }  // extern "C"

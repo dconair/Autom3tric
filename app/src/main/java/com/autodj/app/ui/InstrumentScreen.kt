@@ -41,6 +41,9 @@ interface InstrumentHost {
     fun resetSteps(voice: Int)
     fun peaksFor(slot: Int): FloatArray?
     fun sourceInfoFor(slot: Int): SourceInfo?
+
+    /** Labels of the source chips in slot order: the four built-in sources first, then imported songs. */
+    val sourceNames: List<String> get() = DemoSourceNames
 }
 
 /** One registry parameter as the instrument sees it: read the value in composition, write through the host. */
@@ -84,7 +87,7 @@ private const val MODE_KEYS = 2
 
 /** Knob order of the sync divisions, slow -> fast: 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 (as indices of the native enum). */
 private val SyncKnobOrder = intArrayOf(0, 4, 1, 5, 2, 6, 3)
-private val DemoSourceNames = listOf("pad", "drums", "noise", "sine")
+val DemoSourceNames = listOf("pad", "drums", "noise", "sine")
 
 fun formatPercent(v: Float) = "${(v * 100f).roundToInt()} %"
 fun formatDensity(v: Float) = if (v >= 10f) String.format(Locale.US, "%.0f /s", v) else String.format(Locale.US, "%.1f /s", v)
@@ -175,7 +178,13 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier) {
         ) {
             Segmented(listOf("1", "2", "3", "4"), voice, { host.selectedVoice = it })
             OutlinedPill("hold on", onClick = { p.gate.set(if (p.gate.value >= 0.5f) 0f else 1f) }, selected = p.gate.value >= 0.5f)
-            Segmented(DemoSourceNames, slot.coerceIn(0, DemoSourceNames.size - 1), { p.source.set(it.toFloat()) })
+            val names = host.sourceNames
+            val builtIn = DemoSourceNames.size
+            Segmented(DemoSourceNames, if (slot < builtIn) slot else -1, { p.source.set(it.toFloat()) })
+            for (i in builtIn until names.size) {
+                val label = names[i].let { if (it.length > 14) it.take(13) + "…" else it }
+                OutlinedPill(label, onClick = { p.source.set(i.toFloat()) }, selected = slot == i)
+            }
         }
     }
 
