@@ -1,7 +1,7 @@
 // JNI bridge. Thin on purpose: every call is a control-thread call that forwards to Engine / AudioDriver.
 // The audio callback (AudioDriver::onAudioReady) never touches JNI.
 //
-// Conventions: handle = pointer to Handle as jlong. All strings are UTF-8 JSON. Poll calls fill preallocated
+// Conventions: handle = pointer to EngineHandle as jlong. All strings are UTF-8 JSON. Poll calls fill preallocated
 // primitive arrays supplied by Kotlin, so the 30 Hz UI poll does not allocate on the Java side either.
 
 #ifdef __ANDROID__
@@ -30,12 +30,12 @@ using autodj::platform::DriverOptions;
 
 namespace {
 
-struct Handle {
+struct EngineHandle {
   std::unique_ptr<Engine> engine;
   std::unique_ptr<AudioDriver> driver;
 };
 
-Handle* H(jlong h) { return reinterpret_cast<Handle*>(h); }
+EngineHandle* H(jlong h) { return reinterpret_cast<EngineHandle*>(h); }
 
 jstring toJString(JNIEnv* env, const std::string& s) { return env->NewStringUTF(s.c_str()); }
 
@@ -80,7 +80,7 @@ JFN(jlong, nativeCreate)(JNIEnv*, jclass, jint sampleRate, jint voices) {
 #if AUTODJ_RT_GUARD
   autodj::rt::setViolationHandler(&violationHandler);
 #endif
-  auto* h = new Handle();
+  auto* h = new EngineHandle();
   h->engine = std::make_unique<Engine>(cfg);
   h->driver = std::make_unique<AudioDriver>(*h->engine);
   return reinterpret_cast<jlong>(h);
@@ -88,7 +88,7 @@ JFN(jlong, nativeCreate)(JNIEnv*, jclass, jint sampleRate, jint voices) {
 
 JFN(void, nativeDestroy)(JNIEnv*, jclass, jlong h) {
   if (!h) return;
-  Handle* p = H(h);
+  EngineHandle* p = H(h);
   p->driver.reset();  // stops the stream before the engine goes away
   p->engine.reset();
   delete p;
