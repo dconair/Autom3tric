@@ -6,6 +6,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -29,7 +30,7 @@ class NativeSmokeTest {
             assertNotNull(e.sourcePeaks(0, 256))
             assertNotNull(e.sourceInfo(0))
             assertNotNull(e.spec("granular.chaos"))
-            assertNotNull(e.pollStatus() ?: e.pollStatus(), "status poll")
+            assertNull(e.pollStatus(), "no audio callback has run yet, so no status is published")
         }
     }
 
@@ -41,7 +42,7 @@ class NativeSmokeTest {
             val result = e.start()
             println("CoreAudio start result=$result info=${e.driverInfo()}")
             Thread.sleep(300)
-            println("after 300 ms: ${e.driverInfo()}  status=${e.pollStatus()}")
+            println("after 300 ms: ${e.driverInfo()}  status=${e.pollStatus()}")  // null if the runner has no device
             e.stop()
         }
     }
