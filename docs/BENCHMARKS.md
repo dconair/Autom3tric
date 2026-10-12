@@ -10,11 +10,11 @@ unter QEMU geprüft, nicht auf Geschwindigkeit.
 * `native/bench/BenchCore.cpp` (gemeinsam für das Host-CLI und den Benchmark-Knopf im Debug-Tab) misst die Wandzeit von
   `Engine::process()` pro Callback, also denselben Aufruf wie der Oboe-Callback. 4 Voices, 48 kHz Stereo-Float, zufällige Positionen
   in einer 20-s-Quelle, Pitch-Streuung ±3 st, Stereo-Spread 0,8, Hüllkurven je Voice verschieden.
-* 8 s Messung je Lauf (+ 1,5 s Warm-up), Median aus 3 Läufen; Last = Callback-Dauer / Pufferdauer. Der Governor (adaptive Qualität)
+* 8 s *gerendertes Audio* je Lauf (+ 1,5 s Warm-up; die Läufe dauern wegen der Rendergeschwindigkeit nur Sekunden), Median aus 3 Läufen; Last = Callback-Dauer / Pufferdauer. Der Governor (adaptive Qualität)
   ist abgeschaltet, damit die gewünschte Last gemessen wird und nicht eine gedrosselte.
 * Eigener Build ohne Allokations-Wächter: `cmake -S . -B build-bench -G Ninja -DCMAKE_BUILD_TYPE=Release -DAUTODJ_RT_GUARD=OFF`,
   dann `build-bench/native/bench/bench_granular --md docs/results/bench_host.md --json docs/results/bench_host.json`.
-  Neu: `--chaos 0.5` misst mit laufendem Chaos-Effekt (Standard 0 = Bypass).
+  Neu: `--chaos 0.5` misst mit laufendem Chaos-Effekt (Standard 0 = Bypass), z. B. `--chaos 0.5 --kernel simd --md docs/results/bench_host_chaos.md`.
 * Die Werte sind nur zwischen Läufen derselben Maschine vergleichbar; auf einer geteilten VM schwanken Ausreißer (max µs).
 
 ## 2. Ergebnisse (Host, SSE2)
@@ -22,23 +22,27 @@ unter QEMU geprüft, nicht auf Geschwindigkeit.
 Vollständige Tabelle (64/128/256/512 Grains × Callback 128/192 × linear/Hermite × SIMD/skalar): [`results/bench_host.md`](results/bench_host.md)
 und `.json`.
 
-**Stand dieser Zahlen: vor Einbau der Instrument-Schicht** (Cells, Chaos, Output). Chaos = 0 ist ein bit-identischer Bypass ohne CPU, der
-Output-Pegel ist ein Multiplikator pro Block; der Mehraufwand im Standardfall ist damit klein, aber **nicht neu gemessen**. Ein Neulauf
-(inklusive `--chaos 0.5`) wurde aus Zeitgründen nicht mehr gemacht und steht aus.
+Stand: gemessen auf dem finalen Code (mit Cells, Chaos, Output), ruhige Maschine, ein Kern fest zugewiesen (`taskset`), Build ohne Wächter.
+Die Zahlen vor dem Instrument-Umbau lagen innerhalb von rund ±10 % (z. B. 256 Grains Hermite SSE2, 128 Frames: 145,0 µs damals, 159,7 µs jetzt;
+auf einer geteilten VM ist das Rauschen in dieser Größenordnung).
 
-Auszug, Hermite-Interpolation, SSE2, Callback 128 Frames (2,67 ms Budget):
+Auszug, Hermite-Interpolation, SSE2, Callback 128 Frames (2,67 ms Budget), Chaos aus:
 
 | Grains | mean | p99 | Last mean | Last p99 |
 |---:|---:|---:|---:|---:|
-| 64 | 41,6 µs | 67,7 µs | 1,6 % | 2,5 % |
-| 128 | 77,3 µs | 122,5 µs | 2,9 % | 4,6 % |
-| 256 | 145,0 µs | 182,9 µs | 5,4 % | 6,9 % |
-| 512 | 308,1 µs | 567,7 µs | 11,6 % | 21,3 % |
+| 64 | 38,3 µs | 66,2 µs | 1,4 % | 2,5 % |
+| 128 | 77,8 µs | 199,9 µs | 2,9 % | 7,5 % |
+| 256 | 159,7 µs | 264,1 µs | 6,0 % | 9,9 % |
+| 512 | 317,5 µs | 459,3 µs | 11,9 % | 17,2 % |
 
-Zum Vergleich der skalare Referenzpfad bei 512 Grains (Hermite, 128 Frames): 864 µs mean = 32,4 % (SIMD-Faktor 2,8×).
-Mit Callback 192 liegen die Werte bei 256 Grains Hermite SSE2 bei 6,0 % mean / 8,6 % p99, bei 512 Grains bei 10,7 % / 14,5 %.
+Zum Vergleich der skalare Referenzpfad bei 512 Grains (Hermite, 128 Frames): 821,5 µs mean = 30,8 % (SIMD-Faktor 2,6×).
+Mit Callback 192 (4 ms Budget) liegen 256 Grains Hermite SSE2 bei 5,5 % mean / 7,0 % p99, 512 Grains bei 11,8 % / 16,4 %.
 
-**Einordnung:** Auf diesem Xeon bleiben 256 Grains bei ca. 5 % und 512 bei ca. 12 % eines Kerns, ein Telefonkern ist langsamer und
+**Chaos-Effekt** ([`results/bench_host_chaos.md`](results/bench_host_chaos.md), `--chaos 0.5`, Hall und Flanger laufen): Mehraufwand ca. 8–13 µs pro
+128-Frame-Callback bei 64–256 Grains (≈ 0,3–0,5 % des Budgets), bei größeren Lasten im Rauschen. Mit Chaos 0,5: 256 Grains Hermite 6,0 % mean / 8,0 % p99,
+512 Grains 12,2 % / 23,4 %.
+
+**Einordnung:** Auf diesem Xeon bleiben 256 Grains bei ca. 6 % und 512 bei ca. 12 % eines Kerns, ein Telefonkern ist langsamer und
 anders getaktet (Big/Little, Drosselung). Die Zahl sagt, dass für das 15-%-Ziel Reserve da ist, nicht, dass das Ziel erreicht ist.
 Der Benchmark im Debug-Tab liefert die echten Zahlen: Debug → „Full (~10 min)“ → „Copy results“.
 
@@ -95,4 +99,4 @@ das ist korrigiert, und der Fuzz prüft jetzt am Ende jedes Seeds, dass keine Pu
 * Geteilte VM: Zeitwerte schwanken, besonders die Maxima. p99 ist robuster als max.
 * Kein Gerätelauf: keine Aussage über Thermik, Big/Little-Scheduling, ADPF-Wirkung, echte Latenz und Treiber-XRuns.
 * Die Benchmark-Last ist synthetisch (zufällige Positionen in einer Quelle); echte Musik und Cache-Verhalten können abweichen.
-* Der Benchmark deckt den Standardfall (Chaos = 0). Die Kosten von Chaos und Step-Modus sind nicht neu gemessen.
+* Gemessen sind Chaos aus und Chaos 0,5. Der Step-Modus (Zellberechnung pro Grain) hat keine eigene Messreihe; er ist rechnerisch klein (eine Division und ein Modulo pro neuem Grain), aber nicht separat belegt.
