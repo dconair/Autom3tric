@@ -65,7 +65,7 @@ rt_lint_self_test; Release zusätzlich `param_specs_snapshot`). Kotlin: 23 JVM-T
 
 ## 5. Stresstest
 
-`native/tools/stress_test`: (0) deterministischer Fuzz mit 300 Seeds × 4000 Callbacks (Parameter-Stürme auf allen 123 Parametern, Noten,
+`native/tools/stress_test`: (0) deterministischer Fuzz mit 300 Seeds × 4000 Callbacks (Parameter-Stürme auf allen 123 Parametern, auch Cells/Chaos/Output, Noten,
 Quellenwechsel, Presets, Graph-Tausch, Transport, Resets; Prüfung auf nicht-endliche Ausgabe, Pool-Invarianten und Besitz aller zurückgegebenen
 Puffer/Graphen); (1) 10 min Audio im Freilauf mit zufälligen Callback-Größen 1…1500 und einem Control-Thread; (2) 10 min Echtzeit-Takt (192 Frames,
 absolute Deadlines; ein Callback länger als sein Puffer zählt als virtueller XRun). Geprüft werden außerdem Allokation im Audio-Thread (Guard)
@@ -73,8 +73,18 @@ und Speicherwachstum.
 
 Aufruf: `taskset -c 2,3 build-host/native/tools/stress_test --fuzz-seeds 300 --fuzz-callbacks 4000 --audio-seconds 600 --paced-seconds 600`.
 
-**Ergebnis auf dem finalen Code: siehe [`results/stress_host.txt`](results/stress_host.txt), sobald der Lauf abgeschlossen ist** (Stand beim Anlegen
-dieser Datei lief er noch; ob er durchgelaufen ist, steht am Ende der Datei als `STRESS TEST PASSED` oder `FAILED`).
+**Ergebnis auf dem finalen Code** (Host, Release mit Guard, Kerne 2+3, vollständig in [`results/stress_host.txt`](results/stress_host.txt)): `STRESS TEST PASSED`.
+
+| Phase | Umfang | Ergebnis |
+|---|---|---|
+| Fuzz | 300 Seeds × 4000 Callbacks | 0 Fehler (Ausgabe endlich, Invarianten, Besitz) |
+| Freilauf | 600 s Audio in 30 s Wand, 1,4 Mio. Callbacks, 3511 Graph-Tausche, 124 Resets | mean 20,6 µs, 0 RT-Verstöße, RSS 43,5 → 49,9 MB, 16 Puffer / 1 Graph am Ende gehalten (Grenze 16 / 2) |
+| Echtzeit | 600 s im 192-Frame-Takt, 150 000 Callbacks, 1,38 Mio. Parameter-Schreibzugriffe, 68 710 Graph-Tausche, 2901 Resets | mean 40,6 µs, p99 (gesampelt) 104,8 µs, max 7,1 ms, 0 RT-Verstöße, RSS 47 → 54 MB, nichts hängt am Ende |
+
+**Ehrlicher Vorbehalt:** In der Echtzeit-Phase überschritten **8 von 150 000 Callbacks** ihr Pufferbudget (4 ms), im Freilauf 2 (dort ist der
+Wert wegen Callback-Größen ab 1 Frame kaum aussagekräftig). Im selben Lauf war die Aufweck-Verspätung des Betriebssystems bis zu 62 ms; das spricht für
+Störungen durch die geteilte VM, ist aber **nicht bewiesen** (Callback-Maximum 7,1 ms). Auf einem Gerät muss das mit dem Debug-Tab und ADPF
+neu bewertet werden. Der Test deckt außerdem nur den Pfad ohne echtes Audiogerät ab.
 
 Was der Fuzz früher gefunden hat: eine NaN-Ausgabe bei `loop_start = loop_end = 1` (korrigiert, mit Regressionstest). Außerdem war der
 Fuzz zunächst zu schwach (Garbage-Collection und Engine-Reset wurden nie ausgelöst, wegen eines Zählfehlers in der Iterationsnummer);
