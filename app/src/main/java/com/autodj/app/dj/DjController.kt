@@ -53,6 +53,9 @@ class DjController(
     /** The two decks of the manual mixer. */
     val decks = DeckController(this, engine, scope, io, ui)
 
+    /** Effects and drum pads. */
+    val perf = PerformanceController(engine)
+
     /** What the audio thread reported last (decks and mix); refreshed by [poll]. */
     var snapshot by mutableStateOf(DjSnapshot.EMPTY)
         private set

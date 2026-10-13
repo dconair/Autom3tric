@@ -33,14 +33,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.AutoDjViewModel
 import com.autodj.app.ui.dj.DecksScreen
+import com.autodj.app.ui.dj.EffectsScreen
 import com.autodj.app.ui.dj.LibraryScreen
 import com.autodj.app.ui.dj.MixScreen
+import com.autodj.app.ui.dj.PadsScreen
 import java.util.Locale
 
 private enum class Tab(val label: String, val glyph: String) {
     Library("Bibliothek", "≣"),
     Mix("Auto-Mix", "⇄"),
     Decks("Decks", "◉"),
+    Effects("Effekte", "✦"),
+    Pads("Pads", "▦"),
     Granular("Granular", "◌"),
     Debug("Entwickler", "⚙"),
 }
@@ -78,6 +82,8 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits
                     isQueued = { item -> vm.dj.mix.contains(item.id) },
                 )
                 Tab.Decks -> DecksScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal })
+                Tab.Effects -> EffectsScreen(vm.dj)
+                Tab.Pads -> PadsScreen(vm.dj)
                 Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
                 Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })
                 Tab.Debug -> DeveloperTools(vm)

@@ -34,9 +34,14 @@ data class PlanSnapshot(
     val bpm: Double = 0.0,
 )
 
-data class DjSnapshot(val deck: List<DeckSnapshot> = listOf(DeckSnapshot(), DeckSnapshot()), val plan: PlanSnapshot = PlanSnapshot()) {
+data class DjSnapshot(
+    val deck: List<DeckSnapshot> = listOf(DeckSnapshot(), DeckSnapshot()),
+    val plan: PlanSnapshot = PlanSnapshot(),
+    /** The step (0..15) the drum pad sequencer is on, -1 while it is off. */
+    val padStep: Int = -1,
+) {
     companion object {
-        const val SIZE = 31
+        const val SIZE = 32
         val EMPTY = DjSnapshot()
 
         fun fromArray(v: DoubleArray): DjSnapshot {
@@ -50,6 +55,7 @@ data class DjSnapshot(val deck: List<DeckSnapshot> = listOf(DeckSnapshot(), Deck
                     active = v[22] != 0.0, finished = v[23] != 0.0, item = v[24].toInt(), transition = v[25].toInt(), waiting = v[26].toInt(),
                     timeSec = v[27], totalSec = v[28], beat = v[29], bpm = v[30],
                 ),
+                padStep = v[31].toInt(),
             )
         }
     }

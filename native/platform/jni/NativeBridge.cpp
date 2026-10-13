@@ -464,6 +464,14 @@ JFN(jboolean, nativeDeckSeek)(JNIEnv*, jclass, jlong h, jint deck, jdouble sec) 
   return H(h)->engine->deckSeek(deck, sec) ? JNI_TRUE : JNI_FALSE;
 }
 
+// ---- drum pads (the effects are plain parameters "fx.*" / "pads.*") ----
+JFN(jboolean, nativePadTrigger)(JNIEnv*, jclass, jlong h, jint pad, jfloat velocity) {
+  return H(h)->engine->padTrigger(pad, velocity) ? JNI_TRUE : JNI_FALSE;
+}
+JFN(jboolean, nativePadRow)(JNIEnv*, jclass, jlong h, jint pad, jint mask) {
+  return H(h)->engine->padSetRow(pad, static_cast<unsigned>(mask)) ? JNI_TRUE : JNI_FALSE;
+}
+
 /// Suggested order: indices into `ids`.
 JFN(jintArray, nativeOrderTracks)(JNIEnv* env, jclass, jlong h, jintArray ids, jint mode) {
   const jsize n = env->GetArrayLength(ids);
@@ -530,11 +538,11 @@ JFN(void, nativePlanRelease)(JNIEnv*, jclass, jlong h, jint planId) {
 }
 
 /// out: per deck [loaded, playing, ended, trackId, posSec, durationSec, rate, bpm, beatPhase, peakL, peakR] x 2, then the plan
-/// [active, finished, item, transition, waiting, timeSec, totalSec, beat, bpm]  (31 values).
+/// [active, finished, item, transition, waiting, timeSec, totalSec, beat, bpm], then the step of the pad sequencer (-1 = off)  (32 values).
 JFN(jboolean, nativePollDj)(JNIEnv* env, jclass, jlong h, jdoubleArray out) {
   autodj::dj::DjStatus s;
-  if (!H(h)->engine->readDjStatus(s) || env->GetArrayLength(out) < 31) return JNI_FALSE;
-  double v[31];
+  if (!H(h)->engine->readDjStatus(s) || env->GetArrayLength(out) < 32) return JNI_FALSE;
+  double v[32];
   int k = 0;
   for (const auto& d : s.deck) {
     v[k++] = d.loaded; v[k++] = d.playing; v[k++] = d.ended; v[k++] = d.trackId; v[k++] = d.posSec; v[k++] = d.durationSec;
@@ -543,7 +551,8 @@ JFN(jboolean, nativePollDj)(JNIEnv* env, jclass, jlong h, jdoubleArray out) {
   const auto& p = s.plan;
   v[k++] = p.active; v[k++] = p.finished; v[k++] = p.item; v[k++] = p.transition; v[k++] = p.waiting;
   v[k++] = p.timeSec; v[k++] = p.totalSec; v[k++] = p.beat; v[k++] = p.bpm;
-  env->SetDoubleArrayRegion(out, 0, 31, v);
+  v[k++] = s.padStep;
+  env->SetDoubleArrayRegion(out, 0, 32, v);
   return JNI_TRUE;
 }
 

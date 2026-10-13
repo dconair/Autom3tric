@@ -98,6 +98,13 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     fun deckPlay(deck: Int, play: Boolean): Boolean = handle != 0L && NativeEngine.nativeDeckPlay(handle, deck, play)
     fun deckSeek(deck: Int, sec: Double): Boolean = handle != 0L && NativeEngine.nativeDeckSeek(handle, deck, sec)
 
+    // ---- performance: the effects are parameters "fx.*"; the drum pads are played and programmed with these ----
+    /** Plays pad 0..15 once; [velocity] 0 = full. */
+    fun padTrigger(pad: Int, velocity: Float = 0f): Boolean = handle != 0L && NativeEngine.nativePadTrigger(handle, pad, velocity)
+
+    /** Sets the sequencer row of a pad: bit s of [mask] = step s (a 16th note) is on. */
+    fun padRow(pad: Int, mask: Int): Boolean = handle != 0L && NativeEngine.nativePadRow(handle, pad, mask)
+
     /** Suggested order for [ids] (mode: 0 as listed, 1 smart, 2 tempo up, 3 tempo down): indices into [ids]. */
     fun orderTracks(ids: IntArray, mode: Int): IntArray = NativeEngine.nativeOrderTracks(handle, ids, mode)
 
