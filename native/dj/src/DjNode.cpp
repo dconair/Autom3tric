@@ -372,6 +372,40 @@ void DjNode::process(ProcessIO& io) noexcept {
   else processLive(io);
 }
 
+MasterClock DjNode::masterClock(const BlockTime& fallback) const noexcept {
+  MasterClock c;
+  c.bpm = fallback.bpm();
+  c.beat = fallback.clockBeat;
+  if (plan_ != nullptr && !finished_) {
+    c.bpm = plan_->bpmAt(m_);
+    c.beat = m_;
+    c.fromMusic = true;
+    return c;
+  }
+  float gx[2];
+  crossfaderGains(pv_.crossfader, pv_.curve, gx);
+  int best = -1;
+  float bestW = -1.f;
+  for (int d = 0; d < 2; ++d) {
+    const Deck& dk = decks_[d];
+    const Track* t = dk.track();
+    if (t == nullptr || !dk.streaming() || !t->analysis.hasTempo() || t->analysis.beatSec <= 0.0) continue;
+    const float w = pv_.volume[d] * gx[d];
+    if (w > bestW) {
+      bestW = w;
+      best = d;
+    }
+  }
+  if (best >= 0) {
+    const Deck& dk = decks_[best];
+    const analysis::TrackAnalysis& a = dk.track()->analysis;
+    c.bpm = 60.0 / a.beatSec * dk.lastRate();
+    c.beat = (dk.heardFrames() / sr_ - a.gridOffsetSec) / a.beatSec;
+    c.fromMusic = true;
+  }
+  return c;
+}
+
 // ------------------------------------------------------------------------------------------------------
 // status
 // ------------------------------------------------------------------------------------------------------

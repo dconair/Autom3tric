@@ -16,6 +16,7 @@
 #include <cstdint>
 
 #include "autodj/core/Command.h"
+#include "autodj/core/MasterClock.h"
 #include "autodj/core/Param.h"
 #include "autodj/core/Transport.h"
 
@@ -28,6 +29,7 @@ struct ProcessSpec {
 
 struct ProcessIO {
   const BlockTime* time = nullptr;
+  const MasterClock* clock = nullptr;  // where the beat grid of the music is in this block (see MasterClock.h)
   const float* in = nullptr;  // interleaved stereo, null for pure sources
   float* out = nullptr;       // interleaved stereo; nodes ADD into it (the graph clears it per block)
   int frames = 0;

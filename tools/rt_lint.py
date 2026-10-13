@@ -38,6 +38,7 @@ RT_FILES = [
     "native/granular/src/GrainKernels.cpp",
     "native/engine/src/ToneNode.cpp",
     "native/dj/include/autodj/dj/DjDsp.h",
+    "native/core/include/autodj/core/MasterClock.h",
 ]
 
 RT_FUNCTIONS = {
@@ -53,8 +54,10 @@ RT_FUNCTIONS = {
     "native/dj/src/Deck.cpp": ["setTrack", "play", "pause", "seek", "heardFrames", "fillInput", "startStream", "process"],
     "native/dj/src/DjNode.cpp": [
         "setParams", "release", "clearManualDecks", "finishPlan", "stopPlan", "handleCommand", "trimGain", "crossfaderGains",
-        "tone", "processLive", "startItem", "fireDue", "renderPlanBlock", "processPlan", "process", "fillStatus",
+        "tone", "processLive", "startItem", "fireDue", "renderPlanBlock", "processPlan", "process", "fillStatus", "masterClock",
     ],
+    "native/perf/src/MasterFx.cpp": ["reset", "setParams", "startRoll", "process"],
+    "native/perf/src/PadNode.cpp": ["reset", "activeVoices", "setParams", "handleCommand", "trigger", "runSequencer", "process"],
 }
 
 # --------------------------------------------------------------------------------------------------

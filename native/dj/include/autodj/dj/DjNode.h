@@ -30,6 +30,11 @@ class DjNode final : public Node {
   void process(ProcessIO& io) noexcept override;
   bool handleCommand(const Command& cmd, GarbageQueue& garbage) noexcept override;
 
+  /// Audio thread, before process(): the beat grid of what is playing, for tempo-synced effects and the pad sequencer. Plan
+  /// running: the plan's master clock. Otherwise the louder playing deck's own beat grid. `fallback` (the free-running
+  /// engine clock) when no tempo is known.
+  MasterClock masterClock(const BlockTime& fallback) const noexcept;
+
   /// Audio thread, after process(): the state for the UI.
   void fillStatus(DjStatus& out) noexcept;
 

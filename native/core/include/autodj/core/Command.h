@@ -31,6 +31,8 @@ enum class CmdType : std::uint8_t {
   DeckSeek,       // target = deck, payload.d = seconds
   PlanStart,      // payload.ptr = const MixPlan* (kept alive by the control side until the audio thread returns it)
   PlanStop,       // stop the running mix plan (decks it started are cleared)
+  PadTrigger,     // target = pad 0..15, f0 = velocity (0 = full)
+  PadRow,         // target = pad 0..15, i0 = 16-bit step mask of its sequencer row
 };
 
 struct Command {

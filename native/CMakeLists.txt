@@ -3,6 +3,7 @@ add_subdirectory(analysis)
 add_subdirectory(fx)
 add_subdirectory(granular)
 add_subdirectory(dj)
+add_subdirectory(perf)
 add_subdirectory(engine)
 
 if(ANDROID OR AUTODJ_BUILD_JNI)

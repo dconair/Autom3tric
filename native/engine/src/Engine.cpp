@@ -35,6 +35,7 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   ids_.tone = registerToneParams(reg_);
   ids_.granular = granular::registerGranularParams(reg_, cfg_.granularVoices);
   ids_.dj = dj::registerDjParams(reg_);
+  ids_.perf = perf::registerPerfParams(reg_);
   reg_.freeze();
   params_ = std::make_unique<ParamStore>(reg_);
 
@@ -48,7 +49,12 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   dj_->prepare(spec);
   allNodes_[0] = tone_.get();
   allNodes_[1] = granular_.get();
+  pads_ = std::make_unique<perf::PadNode>(ids_.perf);
+  pads_->prepare(spec);
+  fx_ = std::make_unique<perf::MasterFx>(ids_.perf);
+  fx_->prepare(spec.sampleRate);
   allNodes_[2] = dj_.get();
+  allNodes_[3] = pads_.get();
 
   transport_.prepare(cfg_.sampleRate);
   std::memset(nodeBuf_, 0, sizeof(nodeBuf_));
@@ -57,6 +63,7 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   g->add(tone_.get(), 1.f);
   g->add(granular_.get(), 1.f);
   g->add(dj_.get(), 1.f);
+  g->add(pads_.get(), 1.f);
   g->version = ++graphVersion_;
   graph_ = g.get();
   heldGraphs_.emplace(graph_, std::move(g));
@@ -271,6 +278,22 @@ bool Engine::planStart(std::shared_ptr<const dj::MixPlan> plan) {
   return false;
 }
 
+bool Engine::padTrigger(int pad, float velocity) {
+  if (pad < 0 || pad >= perf::kPads) return false;
+  Command c = Command::make(CmdType::PadTrigger);
+  c.target = static_cast<std::uint8_t>(pad);
+  c.f0 = velocity;
+  return post(c);
+}
+
+bool Engine::padSetRow(int pad, unsigned mask) {
+  if (pad < 0 || pad >= perf::kPads) return false;
+  Command c = Command::make(CmdType::PadRow);
+  c.target = static_cast<std::uint8_t>(pad);
+  c.i0 = static_cast<std::int32_t>(mask & 0xFFFFu);
+  return post(c);
+}
+
 bool Engine::planStop() { return post(Command::make(CmdType::PlanStop)); }
 
 bool Engine::readDjStatus(dj::DjStatus& out) {
@@ -309,6 +332,7 @@ std::unique_ptr<GraphDesc> Engine::makeGraph(float toneGain, float granularGain)
   g->add(tone_.get(), toneGain);
   g->add(granular_.get(), granularGain);
   g->add(dj_.get(), 1.f);
+  g->add(pads_.get(), 1.f);
   return g;
 }
 
@@ -383,6 +407,7 @@ void Engine::applyCommand(const Command& cmd) noexcept {
     }
     case CmdType::ResetEngine:
       transport_.reset();
+      fx_->reset();
       for (Node* n : allNodes_) n->handleCommand(cmd, garbage_);
       return;
     default:
@@ -425,7 +450,9 @@ void Engine::process(float* out, int numFrames) noexcept {
     granular_->updateLoad(blockLoad, static_cast<float>(numFrames) / static_cast<float>(cfg_.sampleRate));
   }
   publishStatus(numFrames, loadEma_, blockLoad);
-  dj_->fillStatus(djBuf_.writeSlot());
+  dj::DjStatus& ds = djBuf_.writeSlot();
+  dj_->fillStatus(ds);
+  ds.padStep = pads_->currentStep();
   djBuf_.publish();
 }
 
@@ -436,6 +463,7 @@ void Engine::processChunk(float* dst, int frames) noexcept {
   const std::size_t floats = static_cast<std::size_t>(frames) * 2;
   std::memset(dst, 0, floats * sizeof(float));
 
+  const MasterClock mc = dj_->masterClock(t);
   if (graph_) {
     for (int i = 0; i < graph_->count; ++i) {
       const GraphDesc::Entry& e = graph_->entries[i];
@@ -443,6 +471,7 @@ void Engine::processChunk(float* dst, int frames) noexcept {
       std::memset(nodeBuf_, 0, floats * sizeof(float));
       ProcessIO io;
       io.time = &t;
+      io.clock = &mc;
       io.in = nullptr;
       io.out = nodeBuf_;
       io.frames = frames;
@@ -452,6 +481,10 @@ void Engine::processChunk(float* dst, int frames) noexcept {
       for (std::size_t k = 0; k < floats; ++k) dst[k] += nodeBuf_[k] * g;
     }
   }
+
+  // Performance effects sit on the summed bus, in front of the master fader
+  fx_->setParams(*params_);
+  fx_->process(dst, frames, mc);
 
   // Master: smoothed gain ramp, safety soft-clip, peak meter.
   const float target = params_->get(ids_.masterGain);

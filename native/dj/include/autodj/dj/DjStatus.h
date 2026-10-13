@@ -33,6 +33,7 @@ struct PlanStatus {
 struct DjStatus {
   DeckStatus deck[2];
   PlanStatus plan;
+  std::int32_t padStep = -1;  // step the drum pad sequencer is on (0..15), -1 = off; filled in by the engine
 };
 
 }  // namespace autodj::dj

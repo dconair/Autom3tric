@@ -36,6 +36,9 @@
 #include "autodj/engine/ToneNode.h"
 #include "autodj/engine/Tracks.h"
 #include "autodj/granular/GranularNode.h"
+#include "autodj/perf/MasterFx.h"
+#include "autodj/perf/PadNode.h"
+#include "autodj/perf/PerfParams.h"
 
 namespace autodj {
 
@@ -54,6 +57,7 @@ struct EngineParamIds {
   ToneParamIds tone;
   granular::GranularParamIds granular;
   dj::DjParamIds dj;
+  perf::PerfParamIds perf;
 };
 
 class Engine {
@@ -118,6 +122,12 @@ class Engine {
   std::size_t heldTrackCount() const;
   std::size_t heldPlanCount() const;
 
+  // ---- performance: master effects (plain parameters "fx.*") and the drum pads ------------------------
+  /// Plays a pad once (velocity 0..1.5, 0 = full).
+  bool padTrigger(int pad, float velocity = 0.f);
+  /// Sets the 16-bit step mask of a pad's sequencer row (bit s = step s).
+  bool padSetRow(int pad, unsigned mask);
+
   /// Replaces the processing graph (pointer swap on the audio thread). Previous graph is freed here.
   bool publishGraph(std::unique_ptr<GraphDesc> graph);
 
@@ -140,6 +150,7 @@ class Engine {
   LoadReport importPreset(const std::string& json);
 
   granular::GranularNode& granularNode() { return *granular_; }
+  perf::PadNode& padNode() { return *pads_; }
 
   // ---------------------------------------------------------------------------------------
   // Audio side.
@@ -166,7 +177,9 @@ class Engine {
   std::unique_ptr<ToneNode> tone_;
   std::unique_ptr<granular::GranularNode> granular_;
   std::unique_ptr<dj::DjNode> dj_;
-  Node* allNodes_[3] = {};
+  std::unique_ptr<perf::PadNode> pads_;
+  std::unique_ptr<perf::MasterFx> fx_;
+  Node* allNodes_[4] = {};
   const GraphDesc* graph_ = nullptr;
 
   mutable std::mutex ownerMutex_;  // control-side ownership tables
