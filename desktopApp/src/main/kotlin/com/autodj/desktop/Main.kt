@@ -113,7 +113,16 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                     onExport = { bits -> pickExportFile()?.let { host.dj.mix.export(it, bits) } },
                 )
                 2 -> DecksScreen(host.dj, onGoToLibrary = { tab = 0 })
-                3 -> EffectsScreen(host.dj)
+                3 -> EffectsScreen(host.dj, onCaptureToGranular = { seconds ->
+                    host.dj.captureToGranular(seconds) { slot, error ->
+                        if (slot != null) {
+                            host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
+                            tab = 5
+                        } else {
+                            host.report(error ?: "Konnte nichts einfangen")
+                        }
+                    }
+                })
                 4 -> PadsScreen(host.dj)
                 else -> InstrumentScreen(host)
             }

@@ -1,7 +1,24 @@
 # AutoDJ
 
-Native Android-App für automatisches DJ-Mixing und Remixing mit einer **Granular-Engine** als Herzstück.
-Kotlin + Jetpack Compose für die Oberfläche, C++17 (NDK) für den gesamten Audiokern, Oboe/AAudio für die Ausgabe.
+Auto-DJ für **Android und macOS**: Songs in eine Liste legen, automatisch ineinander mischen lassen (oder von Hand auf zwei Decks),
+mit Effekten und Drum-Pads selbst mitspielen, und eine **Granular-Engine** als Instrument. Kotlin + Compose für die Oberfläche,
+C++17 für den gesamten Audiokern, Oboe/AAudio (Android) bzw. CoreAudio (macOS) für die Ausgabe.
+
+## So benutzt du es
+
+Oben (Mac) bzw. unten (Android, dort zusätzlich ein Tab „Entwickler“ mit Parametern und Debug) sind sechs Tabs:
+
+| Tab | Was du dort tust |
+|---|---|
+| **Bibliothek** | Songs hinzufügen (MP3, WAV, FLAC, OGG, M4A …) oder die vier Demo-Songs laden. Jeder Song wird analysiert (Tempo, Takt-Raster, Tonart, Energie, Aufbau). Pro Song: *A* / *B* (auf ein Deck laden), *In die Mix-Liste*, *Granular*. |
+| **Auto-Mix** | Songs in die Liste legen (*Alle Songs hinzufügen*), Reihenfolge ändern oder *Reihenfolge optimieren* (passende Tempi und Tonarten nebeneinander), Übergang (Bass-Swap, Crossfade, Filter, Schnitt oder automatisch) und Länge (8/16/32 Beats) wählen, **Mix starten** — die App mischt die Songs im Takt ineinander und lädt sie erst kurz vor ihrem Einsatz. **WAV exportieren …** rendert denselben Mix schneller als Echtzeit in eine Datei (16 oder 24 Bit) plus Tracklist (`.txt`). |
+| **Decks** | Zwei Decks von Hand: Wellenform (Tippen springt), Play/Cue, **Sync** (zieht Tempo und Beat-Phase auf das andere Deck), Key-Lock, Tempo ±16 %, EQ mit **Kill**, Filter, Lautstärke, Crossfader mit drei Kurven. |
+| **Effekte** | Echo, Hall, Flanger an/aus; **Beat Roll** und **Stutter** gehalten; Echo-Abstand, Roll-Länge und Stutter-Rate im Takt der Musik; **Granular-Freeze** fängt die letzten 2–8 Sekunden des Ausgangs ein und legt sie als Quelle in den Granular-Tab. Die Effekte wirken auf alles, was du hörst. |
+| **Pads** | 16 Drum-Pads (Kick, Snare, Hats, Percussion, Crash, Riser …, synthetisch erzeugt) und ein 16-Step-Sequencer mit Mustern (House, Techno, Hip-Hop, Breakbeat, leer), Swing und Lautstärke. Der Sequencer läuft im Takt des Auto-Mixes bzw. des laufenden Decks, sonst mit eigenem Tempo. |
+| **Granular** | Das Granular-Instrument (siehe unten); seine Quellen sind die Demo-Klänge, Songs aus der Bibliothek und eingefangene Mix-Ausschnitte. |
+
+Nichts davon wurde auf einem Mac oder Telefon gehört; geprüft ist es mit Host-Tests, JVM-Tests gegen die echte native Bibliothek (synthetische
+Songs, gerenderte Audioausgabe) und der CI.
 
 ## Stand
 
@@ -12,7 +29,11 @@ Kotlin + Jetpack Compose für die Oberfläche, C++17 (NDK) für den gesamten Aud
 | 2+ | Instrument-Oberfläche nach der genannten Referenz (Cells Hold/Step/Keys, Chaos, Output, dunkler Bildschirm) | **fertig** (Host- und JVM-getestet, nicht auf Gerät) |
 | 2++ | macOS-App: dieselbe Instrument-Oberfläche (Compose Multiplatform) auf derselben Engine, CoreAudio-Ausgabe, `.dmg` aus der CI | **gebaut und getestet in der CI, nie auf einem Mac gestartet** |
 | 3 | Bibliothek: mehrere Songs importieren (MP3, WAV, FLAC, OGG, M4A), Analyse von BPM, Beat-Raster, Tonart, Energie, Aufbau, Wellenform | **fertig** (Host-, JVM- und CI-getestet mit synthetischen Songs und Testdateien, nicht mit echter Musik) |
-| 4–9 | Decks mit Beat-Matching, Auto-Mix, Effekte, Drumpad, Granular-Feinschliff, Politur | offen, siehe [Roadmap](docs/ARCHITECTURE.md#8-roadmap-meilensteine-aus-der-spezifikation) |
+| 4 | Decks mit Time-Stretch, Sync, EQ/Filter, Crossfader | **fertig** (Host- und JVM-getestet mit synthetischen Songs) |
+| 5 | Auto-Mix: Planer, Übergangstypen, Tempo-Rampen, Ausspielen mit Nachladen, WAV-Export | **fertig** (Host- und JVM-getestet) |
+| 6 | Effekte (Echo, Hall, Flanger, Beat Roll, Stutter) | **fertig** (Host- und JVM-getestet); Timeline-Editor und Automation noch offen |
+| 7 | Drum-Pads mit Sequencer, Granular-Freeze als Effekt | **fertig** (Host- und JVM-getestet); Sample-Pads und Auto-Slicing noch offen |
+| 8–9 | Granular: Modulations-Matrix, XY-Pad; Politur | offen, siehe [Roadmap](docs/ARCHITECTURE.md#8-roadmap-meilensteine-aus-der-spezifikation) |
 
 **Ehrlich gesagt:** Die App wurde gebaut (Debug und Release, arm64-v8a + x86_64) und ihre JVM-Unit-Tests laufen, sie wurde
 aber **noch nie auf einem Gerät gestartet**. Alle Messwerte in diesem Repository sind **Host-Werte** (x86_64-Xeon, SSE2,
@@ -84,9 +105,8 @@ Gradle 8.14.3 kommt über den Wrapper. `local.properties` mit `sdk.dir=…` anle
 ./gradlew assembleRelease
 ```
 
-Oboe 1.10.0 kommt als Prefab-Paket von Google Maven. Die App hat vier Tabs: **Granular** (das Instrument, siehe unten),
-**Params** (alle 123 Parameter, generisch aus der Registry erzeugt, Trigger-Pad, Korn-Wolke), **Transport** (Play/Stop/Rewind, BPM, Master,
-Testton, Presets kopieren/einfügen) und **Debug** (Last, Deadline-Misses, XRuns, aktive Grains, Qualitätsstufe, Latenz,
+Oboe 1.10.0 kommt als Prefab-Paket von Google Maven. Die App hat unten die Tabs der Tabelle oben plus **Entwickler** (dort: **Params** mit allen Parametern, generisch aus der Registry erzeugt, Trigger-Pad, Korn-Wolke, **Transport** mit Play/Stop/Rewind, BPM, Master,
+Testton, Presets kopieren/einfügen, und **Debug** mit Last, Deadline-Misses, XRuns, aktive Grains, Qualitätsstufe, Latenz,
 Kernel-Backend, exklusiver Modus, Benchmark „Quick/Full“ mit „Copy results“).
 
 ### Das Instrument (Tab „Granular“)
@@ -118,7 +138,10 @@ Zahlen für `docs/BENCHMARKS.md`; zusätzlich sollte „RT guard … violations�
 native/core      lock-freie Queues, Parameter-Registry, Presets, Transport, SampleBuffer, RT-Wächter
 native/granular  Grain-Pool, Hüllkurven, Kernels (NEON/SSE2/skalar), Scheduler, adaptive Qualität, GranularNode (Cells, Chaos, Output)
 native/fx        ChaosFx (Hall → Flanger in einem Regler)
-native/engine    Engine (Commands, Blöcke, Master, Status), Testton-Node
+native/analysis  Tempo, Takt-Raster, Tonart, Energie, Aufbau, Wellenform
+native/dj        Decks (Time-Stretch), EQ/Filter, Crossfader, Mix-Planer, Plan-Player
+native/perf      Master-Effekte (Echo, Beat Roll, Stutter, Hall, Flanger), Drum-Pads mit Sequencer
+native/engine    Engine (Commands, Blöcke, Master, Status), Track-Verwaltung, Offline-Export, Testton-Node
 native/platform  Audiotreiber + JNI-Brücke: Oboe (Android), CoreAudio (macOS)
 native/bench     Benchmark (Host-CLI und App teilen sich den Code)
 native/tools     render_cli, stress_test
@@ -137,5 +160,5 @@ docs/            ARCHITECTURE.md, AUDIO_THREAD_RULES.md, BENCHMARKS.md, results/
 
 ## Lizenzen der Abhängigkeiten
 
-nlohmann/json (MIT), GoogleTest (BSD-3), Oboe (Apache-2.0). Geplant: Signalsmith Stretch (MIT) für Time-Stretching.
+nlohmann/json (MIT), GoogleTest (BSD-3), Oboe (Apache-2.0), Signalsmith Stretch und Signalsmith Linear (MIT, im Repository unter `third_party/signalsmith`) für das Time-Stretching der Decks.
 Der Projektcode steht unter der Apache License 2.0 (siehe [LICENSE](LICENSE)).

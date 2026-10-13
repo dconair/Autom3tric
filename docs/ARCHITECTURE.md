@@ -1,4 +1,4 @@
-# Architekturplan AutoDJ (Stand: Meilenstein 1 + 2, mit Instrument-Oberfläche nach Referenz)
+# Architekturplan AutoDJ (Stand: Granular-Instrument, Bibliothek, Decks, Auto-Mix, Effekte, Pads; Android + macOS)
 
 > Kurzfassung: Ein plattformunabhängiger C++17-Audiokern (`native/`) enthält Engine, Parameter-Registry, Transport und die
 > Granular-Engine. Er läuft identisch im Oboe-Callback (Android), im Offline-Renderer, in den Tests und im Benchmark.
@@ -16,8 +16,11 @@ native/
               Node/GraphDesc · Command · Status · Dsp (xorshift, Softclip, Glättung) · RtGuard · Denormals · DemoSources
   granular/   GrainPool · EnvelopeTables · GrainKernels (NEON/SSE2/skalar) · GrainScheduler · AdaptiveQuality
               GranularParams (Registrierung) · GranularNode (1–4 Voices, Cells Hold/Step/Keys, Chaos, Output)
-  fx/         ChaosFx (ein Makro-Regler: Hall → Flanger); später Heimat des Effekt-Racks (M6)
-  engine/     Engine (Composition Root: Commands, Blöcke, Master, Status) · ToneNode (Testton)
+  fx/         ChaosFx (ein Makro-Regler: Hall → Flanger)
+  analysis/   Tempo, Beat-Raster, Tonart, Energie, Aufbau, Peak-Pyramide (Wellenform)
+  dj/         Deck (Signalsmith Stretch) · DjDsp (EQ3, Sweep-Filter) · MixPlan/MixPlanner · DjNode (Live-Decks + Plan-Player)
+  perf/       MasterFx (Stutter → Roll → Echo → Flanger → Hall) · PadKit/PadNode (synthetische Drum-Pads + Sequencer)
+  engine/     Engine (Composition Root: Commands, Blöcke, Master, Status) · Tracks · MixExport (Offline-Render) · ToneNode (Testton)
   platform/   Audiotreiber + JNI: oboe/AudioDriver (Android: Stream, Neustart, LatencyTuner, ADPF) · coreaudio/AudioDriver (macOS: ein AudioUnit) · jni/NativeBridge (gemeinsam)
   bench/      BenchCore (gemeinsam für Host-CLI und App) · bench_granular
   tools/      render_cli (Offline-Render → WAV) · stress_test (Fuzz + Dauerlauf)
@@ -28,7 +31,8 @@ tools/        rt_lint.py (statischer Audio-Thread-Lint)
 docs/         diese Datei, AUDIO_THREAD_RULES.md, BENCHMARKS.md, results/
 ```
 
-Abhängigkeiten laufen nur nach unten: `fx → core`, `granular → fx, core`, `engine → granular, core`, `platform/bench/tools/tests → engine`.
+Abhängigkeiten laufen nur nach unten: `fx → core`, `granular → fx, core`, `analysis → core`, `dj → analysis, core`, `perf → fx, core`,
+`engine → granular, dj, perf, analysis, core`, `platform/bench/tools/tests → engine`.
 Neue Module aus der Spezifikation (analysis, mix-planner, effects, sampler, project-storage) werden zusätzliche Verzeichnisse
 neben `granular/`, die nur `core` kennen und als `Node` in den Graphen gehängt werden.
 
@@ -152,6 +156,57 @@ Abweichung: Die Bibliothek liegt als JSON, nicht in Room, damit sie auf Android 
 (Tempo, Tonart, Aufbau bekannt) und mit Rauschen/Stille getestet, **nicht mit echter Musik** – wie gut sie bei Live-Aufnahmen, Swing oder
 Tempowechseln ist, zeigt erst ein Test mit deinen Songs. Songs ohne erkennbares Tempo bleiben importierbar und werden als solche markiert.
 
+## 5d. DJ-Kern: Decks, Sync, Auto-Mix, Export
+
+Alles Hörbare am DJ-Teil ist ein einziger `DjNode` im Graphen mit zwei Decks. Er hat zwei Betriebsarten:
+
+* **Live** (Tab „Decks“): Die Decks werden von Parametern (`deck.a.*`, `deck.b.*`, `mixer.*`: Lautstärke, Trim, EQ low/mid/high in dB mit −26 = Kill, Filter −1…+1,
+  Tempo ±16 %, Sync, Key-Lock, Crossfader + Kurve) und Commands (Laden, Play, Seek) gesteuert. **Sync** macht ein Deck zum Folger: sein Tempo
+  wird auf das des anderen gesetzt und seine Beat-Phase über eine begrenzte Tempo-Korrektur (max. ±6 %) eingezogen, nie durch einen Sprung.
+* **Plan** (Tab „Auto-Mix“): Ein unveränderlicher `MixPlan` bestimmt, welcher Song auf welchem Deck von welchem Master-Beat bis zu welchem läuft, wie sich
+  das Master-Tempo ändert (stückweise linear in Beats, mit geschlossenen Formeln für die Zeit) und die Automationsspuren (Lautstärke, EQ, Filter je Deck).
+  Jeder Song ist an das Master-Raster „eingerastet“, die Quellposition ist also eine reine Funktion der Master-Beats; das Deck verfolgt sie mit begrenzter Korrektur.
+
+**Deck.** Signalsmith Stretch (MIT) mit Key-Lock. Der Start geht über `outputSeek`, der erste Ausgabewert entspricht damit schon der gewünschten Quellposition (keine Anlaufzeit).
+Pausieren blendet kurz aus und merkt sich die Stelle; ein Seek während des Ausblendens parkt das Deck am neuen Ort (`restAt_`).
+
+**EQ/Filter.** Dreiband-EQ aus Linkwitz-Riley-Weichen (LR4) mit phasenkompensiertem Tiefbass-Zweig, damit „flach“ wirklich flach ist; Kill dämpft ≥ 26 dB. Sweep-Filter: Tiefpass links, Hochpass rechts, Mitte = aus.
+
+**Übergänge.** Bass-Swap (der Bass des neuen Songs bleibt bis zur Mitte der Überblendung weg, dann tauschen die Bässe), Crossfade (gleiche Lautstärke), Filter-Sweep, Schnitt; „Automatisch“
+wählt je Paar nach Tempo, Tonart (Camelot) und Länge der Songs. Tempi, die nach Halbieren/Verdoppeln mehr als 12 % auseinanderliegen, bekommen einen Schnitt auf dem Taktanfang.
+Die Reihenfolge lässt sich optimieren (Smart: ähnliches Tempo, passende Tonart, ähnlicher Pegel; Tempo auf-/absteigend).
+
+**Nachladen.** Ein Mix aus vielen Songs darf nicht als dekodiertes Float-Audio im Speicher liegen. Der Plan wird deshalb aus Analyse-Stubs gebaut (`Track::audio == nullptr`);
+die Kotlin-Seite dekodiert Song *i+1* vor seinem Einsatz und hängt ihn mit `bindAudio` ein, der Audio-Thread liest nur einen atomaren Zeiger (`PlanAudio`). Kommt ein Song zu spät,
+bleibt sein Deck still und er steigt ein, sobald er da ist („waiting“). Freigegeben wird erst, wenn der Audio-Thread garantiert fertig ist.
+
+**Export.** `MixExporter` rendert den Plan mit einer eigenen, nicht-echtzeitfähigen Engine in Schritten (Kotlin bindet zwischen den Schritten die nächsten Songs) als 16-Bit-WAV mit TPDF-Dither oder 24-Bit,
+dazu `<Name>-Tracklist.txt`. Der Export klingt wie die Wiedergabe (Test: gleiche Plan-Position, gleiche Pegel).
+
+Grenzen: Der Planer kennt nur, was die Analyse liefert (Tempo, Raster, Tonart, Energie, Aufbau); bei Live-Aufnahmen, Swing oder Tempowechseln im Song kann das Raster danebenliegen.
+Die Tests laufen mit synthetischen Songs, nicht mit echter Musik. Kein Transients-Erhalt-Tuning, kein Stem-/Vocal-Handling.
+
+## 5e. Performance: Effekte, Drum-Pads, Freeze
+
+Zwei neue Teile im Graphen und eine gemeinsame Taktquelle.
+
+**MasterClock** (`core/MasterClock.h`): wo das Beat-Raster der Musik in diesem Block liegt. Läuft ein Plan, ist es dessen Master-Uhr; sonst das Raster des lauteren spielenden Decks
+(Beat aus seiner Wiedergabeposition, Tempo × aktuelle Rate); sonst die frei laufende Transport-Uhr (`transport.bpm`). Die Uhr wird einmal je Chunk **vor** den Knoten berechnet
+(`DjNode::masterClock`) und per `ProcessIO::clock` an alle Knoten gegeben.
+
+**MasterFx** (`perf/`): Reihe auf dem Summenbus vor dem Master-Fader: Stutter (Gate auf dem Raster) → Beat Roll (die letzten ¼–1 Beat werden gehalten und wiederholt, Nahtstellen mit 1-ms-Fades) → Echo
+(Ping-Pong, Abstand in Beats, Rückkopplung mit Tiefpass, Fahne klingt nach dem Ausschalten aus und wird danach einmal geleert) → Flanger und Hall (`ChaosFx` an seinen beiden Enden).
+Alle Effekte aus = **bitgleicher** Durchgang (Test). Alles ist vorab allokiert; Kosten messbar < 1 % Echtzeit auf dem Host.
+
+**Pads** (`PadKit`, `PadNode`): 16 Klänge werden beim Start synthetisiert (keine Sample-Dateien, daher auf beiden Plattformen gleich, ohne Lizenzfragen). 24 Stimmen; Hi-Hat und Open Hat sind eine Choke-Gruppe.
+Der Sequencer hat 16 Zeilen × 16 Steps (Sechzehntel; Step 1 = Taktanfang des Rasters) und löst Treffer sample-genau im Chunk aus; ein Sprung der Uhr (Seek, Deckwechsel) startet den Lauf neu, ohne Doppel- oder Fehltreffer (Test).
+Das Muster ist Zustand des Knotens und wird mit `PadRow`-Commands gesetzt, Treffer von Hand mit `PadTrigger`. Swing verschiebt jeden zweiten Step um bis zu 30 % eines Steps.
+
+**Freeze („Granular als Effekt“):** Die Engine schreibt die letzten 10 s des Ausgangs in einen Ringpuffer aus relaxed Atomics; `captureOutput` (Control-Thread) kopiert bis zu 8 s daraus in einen neuen `SampleBuffer`
+(bitgleich zum Gerenderten, Test), der als normale Granular-Quelle gesetzt wird. Auf dem Audio-Thread kostet das nur das Schreiben in den Ring.
+
+Grenzen: Kein Sampler (eigene Klänge auf Pads), keine Velocity-/Aufnahmefunktion für die Pads (die Steps haben nur an/aus plus ein festes Akzentprofil für Hats/Percussion), die Effekte haben keine Automation.
+
 ## 6. Wichtige Entscheidungen
 
 | Entscheidung | Begründung | Alternative / Preis |
@@ -186,11 +241,11 @@ Tempowechseln ist, zeigt erst ein Test mit deinen Songs. Songs ohne erkennbares 
 | 1 ✔ | Setup, Oboe, Audio-Thread-Regeln, Queues, Registry, Transport | `core/`, `platform/`, Guard, Lint, Tests |
 | 2 ✔ | Granular-Prototyp mit Benchmarks | `granular/`, `bench/`, Stresstest |
 | 3 ✔ | Import, Dekodierung (MediaCodec / afconvert / Java Sound), Wellenform, Analyse (BPM, Beat-Grid, Tonart, Energie, Aufbau) | siehe 5c; synthetisch getestet, nicht mit echter Musik |
-| 4 | Wiedergabe mit Beat-Matching, Crossfade | `Transport`, `GraphDesc`-Swap, Node-Interface; geplant: Signalsmith Stretch (MIT) |
-| 5 | Auto-Mix, Übergangstypen, Offline-Export | `Engine` mit `realtime=false`, `render_cli`, Golden-Test „Export = Vorschau“ |
-| 6 | Timeline-Editor, Effekt-Rack, Automation | Registry (`automatable`-Flag), Command-Queue, Projekt-JSON nach Preset-Muster |
-| 7 | Drumpad/Sampler mit Auto-Slicing | `noteOn/noteOff`, Trigger-Pad im Granular-Tab als Vorlage |
-| 8 | Granular fertig: Modulations-Matrix, XY-Pad, Einbindung als Instrument/Effekt/Übergang | Control-Rate-Hook, `modulatable`-Flag, Adaptive Qualität fertig |
+| 4 ✔ | Wiedergabe mit Beat-Matching, Crossfade (Decks, Sync, EQ, Filter) | siehe 5d; synthetisch getestet |
+| 5 ✔ | Auto-Mix, Übergangstypen, Offline-Export | siehe 5d |
+| 6 ◐ | Effekt-Rack ✔ (Echo, Hall, Flanger, Roll, Stutter, siehe 5e); Timeline-Editor und Automation offen | Registry (`automatable`-Flag), Command-Queue, Projekt-JSON nach Preset-Muster |
+| 7 ◐ | Drumpad ✔ (siehe 5e); Sampler mit Auto-Slicing offen | `noteOn/noteOff`, `PadNode` als Vorlage |
+| 8 ◐ | Granular fertig: Modulations-Matrix, XY-Pad; Einbindung als Effekt per Freeze ✔, als Übergang offen | Control-Rate-Hook, `modulatable`-Flag, Adaptive Qualität fertig |
 | 9 | Politur, Tests, README mit Benchmarks | Benchmark-Runner in App und Host, `docs/results/` |
 
 ## 9. Fragen, die erst später echte Weichenstellungen werden

@@ -183,6 +183,33 @@ class DjController(
         }
     }
 
+    private var captureCount = 0
+
+    /**
+     * Records the last [seconds] of what the engine played into a granular source slot ("Granular als Effekt": freeze the mix, then
+     * play it with the instrument). Reports the slot (or the error) on [ui].
+     */
+    fun captureToGranular(seconds: Double, onDone: (slot: Int?, error: String?) -> Unit = { _, _ -> }) {
+        val index = if (granularSlots.size < MAX_GRANULAR_SLOTS) granularSlots.size else nextGranularReplace++ % MAX_GRANULAR_SLOTS
+        val slot = FIRST_GRANULAR_SLOT + index
+        val n = captureCount + 1
+        val name = "Mix-Aufnahme $n"
+        scope.launch(io) {
+            val ok = engine.captureToSource(slot, seconds, name)
+            withContext(ui) {
+                if (ok) {
+                    captureCount = n
+                    val entry = GranularSlot("capture:$n", name)
+                    if (index < granularSlots.size) granularSlots[index] = entry else granularSlots.add(entry)
+                    onGranularSlotLoaded(slot)
+                    onDone(slot, null)
+                } else {
+                    onDone(null, "Es gibt noch nichts einzufangen: Audio ist aus, oder es lief noch kein Ton.")
+                }
+            }
+        }
+    }
+
     // ---- import pipeline ------------------------------------------------------------------------
 
     private suspend fun process(id: String) {

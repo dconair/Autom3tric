@@ -105,6 +105,9 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     /** Sets the sequencer row of a pad: bit s of [mask] = step s (a 16th note) is on. */
     fun padRow(pad: Int, mask: Int): Boolean = handle != 0L && NativeEngine.nativePadRow(handle, pad, mask)
 
+    /** Makes the last [seconds] of the output granular source [slot] (a "freeze" of what is playing). False while nothing has been rendered. */
+    fun captureToSource(slot: Int, seconds: Double, name: String): Boolean = handle != 0L && NativeEngine.nativeCaptureToSource(handle, slot, seconds, name)
+
     /** Suggested order for [ids] (mode: 0 as listed, 1 smart, 2 tempo up, 3 tempo down): indices into [ids]. */
     fun orderTracks(ids: IntArray, mode: Int): IntArray = NativeEngine.nativeOrderTracks(handle, ids, mode)
 

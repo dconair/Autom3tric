@@ -82,7 +82,9 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits
                     isQueued = { item -> vm.dj.mix.contains(item.id) },
                 )
                 Tab.Decks -> DecksScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal })
-                Tab.Effects -> EffectsScreen(vm.dj)
+                Tab.Effects -> EffectsScreen(vm.dj, onCaptureToGranular = { seconds ->
+                    vm.captureToGranular(seconds) { ok -> if (ok) tab = Tab.Granular.ordinal }
+                })
                 Tab.Pads -> PadsScreen(vm.dj)
                 Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
                 Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })

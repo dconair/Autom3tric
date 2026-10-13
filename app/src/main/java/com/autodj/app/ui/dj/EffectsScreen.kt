@@ -56,7 +56,7 @@ private val StutterColor = Color(0xFFF06292)
  * stutter work while the button is held. Everything that is tempo-bound follows the beat of the music that is playing.
  */
 @Composable
-fun EffectsScreen(dj: DjController, modifier: Modifier = Modifier) {
+fun EffectsScreen(dj: DjController, modifier: Modifier = Modifier, onCaptureToGranular: ((seconds: Double) -> Unit)? = null) {
     val perf = dj.perf
     DjTheme {
         BoxWithConstraints(modifier.fillMaxSize().background(DjColors.bg)) {
@@ -83,6 +83,7 @@ fun EffectsScreen(dj: DjController, modifier: Modifier = Modifier) {
                     RollCard(perf, Modifier.fillMaxWidth())
                     StutterCard(perf, Modifier.fillMaxWidth())
                 }
+                if (onCaptureToGranular != null) FreezeCard(onCaptureToGranular, Modifier.fillMaxWidth())
                 Text(
                     "Tipp: Beat Roll und Stutter halten, solange du die Taste gedrückt hältst. Echo, Hall und Flanger bleiben an, bis du sie ausschaltest.",
                     color = DjColors.muted, fontSize = 12.sp,
@@ -156,6 +157,21 @@ private fun StutterCard(perf: PerformanceController, modifier: Modifier) {
     FxCard("Stutter", "Zerhackt den Klang im Takt, wie ein Gate", StutterColor, null, {}, modifier) {
         ChipRow("Rate (Note)", StutterRates, perf.param("fx.stutter.rate").value.roundToInt(), StutterColor) { perf.set("fx.stutter.rate", it.toFloat()) }
         HoldButton("Halten für Stutter", StutterColor, on) { perf.setOn("fx.stutter.on", it) }
+    }
+}
+
+private val FreezeSeconds = listOf(2, 4, 8)
+
+@Composable
+private fun FreezeCard(onCapture: (seconds: Double) -> Unit, modifier: Modifier) {
+    var seconds by remember { mutableStateOf(1) }
+    FxCard("Granular-Freeze", "Fängt die letzten Sekunden des Ausgangs ein und legt sie als Quelle ins Granular-Instrument", ReverbColor, null, {}, modifier) {
+        ChipRow("Länge", FreezeSeconds.map { "$it s" }, seconds, ReverbColor) { seconds = it }
+        Box(
+            Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(ReverbColor.copy(alpha = 0.16f)).border(1.dp, ReverbColor, RoundedCornerShape(12.dp))
+                .clickable { onCapture(FreezeSeconds[seconds].toDouble()) },
+            contentAlignment = Alignment.Center,
+        ) { Text("Einfangen und in Granular öffnen", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
     }
 }
 

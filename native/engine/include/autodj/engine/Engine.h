@@ -128,6 +128,11 @@ class Engine {
   /// Sets the 16-bit step mask of a pad's sequencer row (bit s = step s).
   bool padSetRow(int pad, unsigned mask);
 
+  /// Copies the last `seconds` (at most kCaptureSeconds) of what the engine has sent to the speakers into a new buffer, so that it
+  /// can be played back by the granular instrument ("freeze"). Control thread; null while nothing has been rendered yet.
+  std::shared_ptr<const SampleBuffer> captureOutput(double seconds, const std::string& name) const;
+  static constexpr double kCaptureSeconds = 8.0;
+
   /// Replaces the processing graph (pointer swap on the audio thread). Previous graph is freed here.
   bool publishGraph(std::unique_ptr<GraphDesc> graph);
 
@@ -197,6 +202,13 @@ class Engine {
   mutable std::mutex trackMutex_;
   std::unordered_map<int, std::shared_ptr<const Track>> tracks_;
   int nextTrackId_ = 1;
+
+  // the last seconds of output, written by the audio thread (relaxed atomics: the control side copies from the part that is not
+  // being overwritten, see captureOutput)
+  std::unique_ptr<std::atomic<float>[]> capRing_;
+  std::size_t capFrames_ = 0;
+  std::size_t capPos_ = 0;
+  std::atomic<std::uint64_t> capWritten_{0};
 
   TripleBuffer<EngineStatus> statusBuf_;
   TripleBuffer<GrainViz> vizBuf_;

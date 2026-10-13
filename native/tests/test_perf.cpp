@@ -531,3 +531,38 @@ TEST(PerfEngine, EffectsAndPadsTogetherAllocateNothingOnTheAudioThreadAndCostLit
   EXPECT_EQ(viol, 0u);
   EXPECT_LT(total / 20.0, 0.15);
 }
+
+TEST(PerfEngine, CaptureCopiesTheLastSecondsOfTheOutputBitExactly) {
+  EngineConfig cfg;
+  cfg.sampleRate = kSr;
+  cfg.realtime = false;
+  Engine e(cfg);
+  EXPECT_EQ(e.captureOutput(2.0, "none"), nullptr) << "nothing rendered yet";
+  e.params().set(e.ids().perf.padSeqOn, 1.f);
+  e.params().set(e.ids().perf.echoOn, 1.f);
+  std::vector<float> all;
+  std::vector<float> buf(480 * 2);
+  for (int b = 0; b < 600; ++b) {  // 6 s: still inside the 10 s ring
+    e.process(buf.data(), 480);
+    all.insert(all.end(), buf.begin(), buf.end());
+  }
+  auto cap = e.captureOutput(2.0, "freeze");
+  ASSERT_TRUE(cap);
+  EXPECT_EQ(cap->name(), "freeze");
+  EXPECT_EQ(cap->frames(), 2 * kSr);
+  const std::size_t from = all.size() - static_cast<std::size_t>(2 * kSr) * 2;
+  EXPECT_EQ(0, std::memcmp(cap->data(), all.data() + from, static_cast<std::size_t>(2 * kSr) * 2 * sizeof(float)));
+  EXPECT_GT(testutil::peak(std::vector<float>(cap->data(), cap->data() + 2 * kSr)), 0.05f);
+  // 15 s later (the ring has wrapped) it is still the most recent output
+  for (int b = 0; b < 1500; ++b) {
+    e.process(buf.data(), 480);
+    all.insert(all.end(), buf.begin(), buf.end());
+  }
+  cap = e.captureOutput(8.0, "late");
+  ASSERT_TRUE(cap);
+  EXPECT_EQ(cap->frames(), 8 * kSr);
+  const std::size_t from2 = all.size() - static_cast<std::size_t>(8 * kSr) * 2;
+  EXPECT_EQ(0, std::memcmp(cap->data(), all.data() + from2, static_cast<std::size_t>(8 * kSr) * 2 * sizeof(float)));
+  // it can be handed to the granular engine as a source
+  EXPECT_TRUE(e.setSource(5, cap));
+}

@@ -165,6 +165,43 @@ class PerformanceTest {
         perf.setOn("pads.seq_on", false)
     }
 
+    @Test fun freezeTurnsTheLastSecondsIntoAGranularSource() {
+        val dj = DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), MemoryLibraryStore(), scope, io = Dispatchers.IO, ui = ui)
+        var slot: Int? = -1
+        var error: String? = null
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        dj.captureToGranular(2.0) { s, e ->
+            slot = s
+            error = e
+            done.set(true)
+        }
+        await(done)
+        assertEquals(null, slot, "nothing was rendered yet: $error")
+        assertTrue(error != null)
+        dj.perf.setOn("pads.seq_on", true)
+        render(3.0)
+        done.set(false)
+        dj.captureToGranular(2.0) { s, e ->
+            slot = s
+            error = e
+            done.set(true)
+        }
+        await(done)
+        assertEquals(com.autodj.app.dj.FIRST_GRANULAR_SLOT, slot, "error: $error")
+        assertEquals(listOf("Mix-Aufnahme 1"), dj.granularSlots.map { it.name })
+        val peaks = assertNotNull(engine.sourcePeaks(slot!!, 64), "the engine holds the recording")
+        assertTrue(peaks.any { kotlin.math.abs(it) > 0.05f })
+        dj.perf.setOn("pads.seq_on", false)
+    }
+
+    private fun await(flag: java.util.concurrent.atomic.AtomicBoolean) {
+        val end = System.currentTimeMillis() + 10_000
+        while (!flag.get()) {
+            assertTrue(System.currentTimeMillis() < end, "timeout")
+            Thread.sleep(5)
+        }
+    }
+
     @OptIn(ExperimentalComposeUiApi::class)
     private fun shot(content: @androidx.compose.runtime.Composable () -> Unit, name: String, width: Int, height: Int) {
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { content() }
@@ -180,7 +217,7 @@ class PerformanceTest {
 
     @Test fun screenshots() {
         val dj = DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), MemoryLibraryStore(), scope, io = Dispatchers.IO, ui = ui)
-        shot({ EffectsScreen(dj) }, "effects_desktop", 1180, 760)
+        shot({ EffectsScreen(dj, onCaptureToGranular = {}) }, "effects_desktop", 1180, 760)
         shot({ PadsScreen(dj) }, "pads_desktop", 1180, 900)
         dj.perf.setOn("fx.echo.on", true)
         dj.perf.setOn("fx.reverb.on", true)
@@ -188,8 +225,8 @@ class PerformanceTest {
         dj.perf.set("fx.echo.time", 2f)
         dj.perf.setOn("pads.seq_on", true)
         render(0.9) { dj.poll() }
-        shot({ EffectsScreen(dj) }, "effects_on_desktop", 1180, 760)
-        shot({ EffectsScreen(dj) }, "effects_phone", 412, 1100)
+        shot({ EffectsScreen(dj, onCaptureToGranular = {}) }, "effects_on_desktop", 1180, 760)
+        shot({ EffectsScreen(dj, onCaptureToGranular = {}) }, "effects_phone", 412, 1250)
         shot({ PadsScreen(dj) }, "pads_playing_desktop", 1180, 900)
         shot({ PadsScreen(dj) }, "pads_phone", 412, 1500)
         assertEquals(PAD_COUNT, dj.perf.rows.size)

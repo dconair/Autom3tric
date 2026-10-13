@@ -177,6 +177,18 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Freezes the last [seconds] of the output into a granular source and selects it on the current voice. */
+    fun captureToGranular(seconds: Double, onDone: (Boolean) -> Unit = {}) {
+        dj.captureToGranular(seconds) { slot, error ->
+            if (slot != null) {
+                set("granular.v${selectedVoice}.source", slot.toFloat())
+            } else {
+                message = error
+            }
+            onDone(slot != null)
+        }
+    }
+
     fun resetSteps(voice: Int) = engine.resetSteps(voice)
     fun play() = engine.play()
     fun stopTransport() = engine.stopTransport()

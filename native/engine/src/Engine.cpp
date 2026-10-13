@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "autodj/core/Denormals.h"
 #include "autodj/core/RtGuard.h"
@@ -55,6 +56,9 @@ Engine::Engine(const EngineConfig& cfg) : cfg_(cfg) {
   fx_->prepare(spec.sampleRate);
   allNodes_[2] = dj_.get();
   allNodes_[3] = pads_.get();
+
+  capFrames_ = static_cast<std::size_t>((kCaptureSeconds + 2.0) * cfg_.sampleRate);
+  capRing_ = std::make_unique<std::atomic<float>[]>(capFrames_ * 2);
 
   transport_.prepare(cfg_.sampleRate);
   std::memset(nodeBuf_, 0, sizeof(nodeBuf_));
@@ -294,6 +298,21 @@ bool Engine::padSetRow(int pad, unsigned mask) {
   return post(c);
 }
 
+std::shared_ptr<const SampleBuffer> Engine::captureOutput(double seconds, const std::string& name) const {
+  const std::uint64_t written = capWritten_.load(std::memory_order_acquire);
+  const std::size_t want = static_cast<std::size_t>(std::clamp(seconds, 0.1, kCaptureSeconds) * cfg_.sampleRate);
+  const std::size_t n = static_cast<std::size_t>(std::min<std::uint64_t>(want, written));
+  if (n < static_cast<std::size_t>(0.1 * cfg_.sampleRate)) return nullptr;
+  std::vector<float> tmp(n * 2);
+  std::size_t pos = static_cast<std::size_t>((written - n) % capFrames_);
+  for (std::size_t i = 0; i < n; ++i) {
+    tmp[2 * i] = capRing_[2 * pos].load(std::memory_order_relaxed);
+    tmp[2 * i + 1] = capRing_[2 * pos + 1].load(std::memory_order_relaxed);
+    pos = pos + 1 == capFrames_ ? 0 : pos + 1;
+  }
+  return SampleBuffer::fromInterleavedStereo(tmp.data(), n, cfg_.sampleRate, name);
+}
+
 bool Engine::planStop() { return post(Command::make(CmdType::PlanStop)); }
 
 bool Engine::readDjStatus(dj::DjStatus& out) {
@@ -503,7 +522,11 @@ void Engine::processChunk(float* dst, int frames) noexcept {
     dst[2 * i + 1] = r;
     pl = std::max(pl, std::fabs(l));
     pr = std::max(pr, std::fabs(r));
+    capRing_[2 * capPos_].store(l, std::memory_order_relaxed);
+    capRing_[2 * capPos_ + 1].store(r, std::memory_order_relaxed);
+    capPos_ = capPos_ + 1 == capFrames_ ? 0 : capPos_ + 1;
   }
+  capWritten_.fetch_add(static_cast<std::uint64_t>(frames), std::memory_order_release);
   peakL_ = std::max(pl, peakL_);
   peakR_ = std::max(pr, peakR_);
 

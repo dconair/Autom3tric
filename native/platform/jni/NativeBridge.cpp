@@ -472,6 +472,13 @@ JFN(jboolean, nativePadRow)(JNIEnv*, jclass, jlong h, jint pad, jint mask) {
   return H(h)->engine->padSetRow(pad, static_cast<unsigned>(mask)) ? JNI_TRUE : JNI_FALSE;
 }
 
+/// The last `seconds` of the output become granular source `slot` ("freeze"). False while nothing has been rendered yet.
+JFN(jboolean, nativeCaptureToSource)(JNIEnv* env, jclass, jlong h, jint slot, jdouble seconds, jstring name) {
+  auto buf = H(h)->engine->captureOutput(seconds, fromJString(env, name));
+  if (!buf) return JNI_FALSE;
+  return H(h)->engine->setSource(slot, std::move(buf)) ? JNI_TRUE : JNI_FALSE;
+}
+
 /// Suggested order: indices into `ids`.
 JFN(jintArray, nativeOrderTracks)(JNIEnv* env, jclass, jlong h, jintArray ids, jint mode) {
   const jsize n = env->GetArrayLength(ids);
