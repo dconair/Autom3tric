@@ -17,6 +17,10 @@ Oben (Mac) bzw. unten (Android, dort zusätzlich ein Tab „Entwickler“ mit Pa
 | **Pads** | 16 Drum-Pads (Kick, Snare, Hats, Percussion, Crash, Riser …, synthetisch erzeugt) und ein 16-Step-Sequencer mit Mustern (House, Techno, Hip-Hop, Breakbeat, leer), Swing und Lautstärke. Der Sequencer läuft im Takt des Auto-Mixes bzw. des laufenden Decks, sonst mit eigenem Tempo. |
 | **Granular** | Das Granular-Instrument (siehe unten); seine Quellen sind die Demo-Klänge, Songs aus der Bibliothek und eingefangene Mix-Ausschnitte. |
 
+| Auto-Mix (läuft) | Decks | Effekte | Pads + Sequencer |
+|---|---|---|---|
+| ![Auto-Mix](docs/screenshots/mix_playing.png) | ![Decks](docs/screenshots/decks_playing.png) | ![Effekte](docs/screenshots/effects_on_desktop.png) | ![Pads](docs/screenshots/pads_playing_desktop.png) |
+
 Nichts davon wurde auf einem Mac oder Telefon gehört; geprüft ist es mit Host-Tests, JVM-Tests gegen die echte native Bibliothek (synthetische
 Songs, gerenderte Audioausgabe) und der CI.
 
