@@ -1,6 +1,7 @@
-// Referenz-Tokens der Auto-DJ-Designsprache (Compose, gemeinsam für Android und Desktop nutzbar).
+// Referenz-Tokens der Auto-DJ-Designsprache "Kabine" (v2). Compose, gemeinsam für Android und Desktop.
 // Nur Vorlage zum Übernehmen: nicht Teil des Gradle-Builds. Werte 1:1 aus DESIGN.md §3 und mockups/prototype.html.
-// Ziel im Code: DjColors/Palette (dj/DjTheme.kt, ui/Theme.kt) durch diese Datei ersetzen, ein Theme für alle Tabs.
+// Rollennamen sind identisch zu v1 (Ds.c.tile, Ds.c.ink ...): der Umbau ändert vor allem Werte und Formen.
+// Neu: tileSunk, screenBand, deckA/deckB/signal, good, Archivo statt Hanken, Kerbe statt Radius 6, KEINE Tag/Nacht-Variante.
 package com.autodj.app.design
 
 import androidx.compose.animation.core.CubicBezierEasing
@@ -8,6 +9,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextStyle
@@ -15,58 +18,61 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Alle Farben als Rollen. Komponenten kennen nur Rollen, nie Hex-Werte. */
 data class AutoDjColors(
-    val ground: Color,        // Fenster / Bildschirmhintergrund
-    val tile: Color,          // Standardfläche
-    val tile2: Color,         // Spur, gedrückt, Segment-Hintergrund
-    val tile3: Color,         // Hover, Taktbänder, ausgeschaltete Beat-Punkte
-    val ink: Color,           // Text, Drehknöpfe, "ausgewählt"-Füllung
-    val ink2: Color,          // Zweittext (Kontrast >= 4.5 auf tile)
-    val onInk: Color,         // Text auf ink
-    val screen: Color,        // dunkle "Displays": Wellenform, Sequencer, Zeitleiste, Granular
-    val screen2: Color,       // Taktband auf dem Display
-    val screen3: Color,       // Beat-1-Spalte / Playhead-Spalte
+    val ground: Color,        // Fenster
+    val tile: Color,          // Kachel
+    val tileSunk: Color,      // NEU: vertiefte Fläche (Scheiben-Bühne, Segment-Hintergrund)
+    val tile2: Color,         // Button ruhend, Fader-Spur, Zellen
+    val tile3: Color,         // Hover, aufgeklappte Zeile, Wertbogen-Spur
+    val ink: Color,           // Text, "gewählt", globale Aktion (Play, Hauptbutton)
+    val ink2: Color,          // Zweittext (6.5:1 auf tile)
+    val onInk: Color,         // Text auf ink, Orange und Pads
+    val screen: Color,        // Displays: Wellenformen, Sequencer, Zeitleiste, Granular
+    val screen2: Color,       // Sequencer-Zellen
+    val screen3: Color,       // Beat-Spalten, Playhead-Spalte
+    val screenBand: Color,    // NEU: Taktbänder in Wellenformen
     val screenInk: Color,
     val screenDim: Color,
-    val accent: Color,        // Aktion und "läuft": Play, An, Hauptbutton
-    val accentLit: Color,     // Akzent auf dunklem Display
+    val accent: Color,        // Alias von ink, bis alle Stellen auf ink umgestellt sind
+    val accentLit: Color,
     val onAccent: Color,
-    val deckALit: Color, val deckAField: Color,
+    val deckA: Color,         // NEU: Deck A (Knochen): Buchstabe, Ring, Bogen, Regler
+    val deckB: Color,         // NEU: Deck B (Signalorange)
+    val signal: Color,        // NEU: "läuft/laut" (= deckB)
+    val deckALit: Color, val deckAField: Color,   // v1-Namen, bleiben bis zur Umstellung
     val deckBLit: Color, val deckBField: Color,
-    val padKick: Color, val padSnare: Color, val padHat: Color, val padPerc: Color, val padFx: Color,        // Pad-Flächen
-    val padKickLit: Color, val padSnareLit: Color, val padHatLit: Color, val padPercLit: Color, val padFxLit: Color, // Schritte auf dem Display
-    val warn: Color, val bad: Color,
+    val padKick: Color, val padSnare: Color, val padHat: Color, val padPerc: Color, val padFx: Color,        // Pad-Flächen (= Licht)
+    val padKickLit: Color, val padSnareLit: Color, val padHatLit: Color, val padPercLit: Color, val padFxLit: Color,
+    val good: Color, val warn: Color, val bad: Color, // nur kleine Quadrate, Tags, Kill
 )
 
-val TagColors = AutoDjColors(
-    ground = Color(0xFFE5E1D8), tile = Color(0xFFDAD5CA), tile2 = Color(0xFFCFC9BC), tile3 = Color(0xFFC3BDAF),
-    ink = Color(0xFF2A1D17), ink2 = Color(0xFF5C4D44), onInk = Color(0xFFF2EEE6),
-    screen = Color(0xFF1A1310), screen2 = Color(0xFF251B16), screen3 = Color(0xFF34271F),
-    screenInk = Color(0xFFEDE7DB), screenDim = Color(0xFF9A8D82),
-    accent = Color(0xFF456F3A), accentLit = Color(0xFF9CCB86), onAccent = Color(0xFFFFFFFF),
-    deckALit = Color(0xFFE9DFC8), deckAField = Color(0xFF3A2A22), deckBLit = Color(0xFF9DBEE0), deckBField = Color(0xFF3F5F7F),
-    padKick = Color(0xFF3A2A22), padSnare = Color(0xFF456F3A), padHat = Color(0xFF3F5F7F), padPerc = Color(0xFF766652), padFx = Color(0xFFC9B58A),
-    padKickLit = Color(0xFFE9DFC8), padSnareLit = Color(0xFF9CCB86), padHatLit = Color(0xFF9DBEE0), padPercLit = Color(0xFFC7B79F), padFxLit = Color(0xFFE4CF9C),
-    warn = Color(0xFFE0B25A), bad = Color(0xFFB5483A),
+val KabineColors = AutoDjColors(
+    ground = Color(0xFF0A0A0C), tile = Color(0xFF131316), tileSunk = Color(0xFF1B1B20),
+    tile2 = Color(0xFF26262C), tile3 = Color(0xFF34343C),
+    ink = Color(0xFFF1EEE6), ink2 = Color(0xFF9B9BA5), onInk = Color(0xFF0A0A0C),
+    screen = Color(0xFF050507), screen2 = Color(0xFF1B1B20), screen3 = Color(0xFF26262C), screenBand = Color(0xFF0E0E12),
+    screenInk = Color(0xFFF1EEE6), screenDim = Color(0xFF9B9BA5),
+    accent = Color(0xFFF1EEE6), accentLit = Color(0xFFF1EEE6), onAccent = Color(0xFF0A0A0C),
+    deckA = Color(0xFFF1EEE6), deckB = Color(0xFFFF5A1F), signal = Color(0xFFFF5A1F),
+    deckALit = Color(0xFFF1EEE6), deckAField = Color(0xFF26262C), deckBLit = Color(0xFFFF5A1F), deckBField = Color(0xFF26262C),
+    padKick = Color(0xFFFF5A1F), padSnare = Color(0xFFF1EEE6), padHat = Color(0xFF8A97A6), padPerc = Color(0xFFA8C23A), padFx = Color(0xFFFFC857),
+    // Gedrückt: Helligkeit +18 %, Skala 0.965 (in der Pad-Komponente), die Lit-Werte gelten für Schritte auf dem Display
+    padKickLit = Color(0xFFFF5A1F), padSnareLit = Color(0xFFF1EEE6), padHatLit = Color(0xFF8A97A6), padPercLit = Color(0xFFA8C23A), padFxLit = Color(0xFFFFC857),
+    good = Color(0xFF8FE388), warn = Color(0xFFFFC857), bad = Color(0xFFE5484D),
 )
 
-val NachtColors = TagColors.copy(
-    ground = Color(0xFF141010), tile = Color(0xFF1F1916), tile2 = Color(0xFF2B231E), tile3 = Color(0xFF392E27),
-    ink = Color(0xFFEDE7DB), ink2 = Color(0xFFA09386), onInk = Color(0xFF1A1310),
-    screen = Color(0xFF0B0807), screen2 = Color(0xFF17110E), screen3 = Color(0xFF261D18), screenDim = Color(0xFF8C8076),
-    accent = Color(0xFF8FBF7A), onAccent = Color(0xFF14100E),
-)
+val LocalAutoDjColors = staticCompositionLocalOf { KabineColors }
 
-val LocalAutoDjColors = staticCompositionLocalOf { TagColors }
+/** Kontextfarbe eines Decks (Regler, Bogen, Ring, gewählte Segmente). Außerhalb eines Decks: ink. */
+val LocalDeckColor = staticCompositionLocalOf { KabineColors.ink }
 
-/** Camelot-Tonart als Datenfarbe (nur Chip und Tonarten-Tile). Moll (A) satter und dunkler als Dur (B). */
+/** Camelot-Tonart als Datenfarbe (Chip, Tonartenrad). hsl((n-1)*30+200, Dur 55/Moll 70 %, Dur 74/Moll 64 %). Text darauf immer onInk. */
 fun camelotChip(camelot: String): Color {
     val n = camelot.dropLast(1).toIntOrNull() ?: return Color.Gray
     val major = camelot.last() == 'B'
-    return hslToColor(((n - 1) * 30f + 200f) % 360f, if (major) .34f else .40f, if (major) .80f else .72f)   // Text darauf: immer #2A1D17
+    return hslToColor(((n - 1) * 30f + 200f) % 360f, if (major) .55f else .70f, if (major) .74f else .64f)
 }
 private fun hslToColor(h: Float, s: Float, l: Float): Color {
     val c = (1f - kotlin.math.abs(2f * l - 1f)) * s
@@ -79,28 +85,41 @@ private fun hslToColor(h: Float, s: Float, l: Float): Color {
     return Color(r + m, g + m, b + m)
 }
 
-/** Schrift: Hanken Grotesk (OFL), nur Regular und Medium. Dateien: fonts/. Zahlen immer mit "tnum". */
-// Desktop: FontFamily(Font(resource = "fonts/HankenGrotesk-Regular.ttf", FontWeight.Normal), Font(resource = "fonts/HankenGrotesk-Medium.ttf", FontWeight.Medium))
-// Android: res/font/hankengrotesk_regular.ttf, hankengrotesk_medium.ttf -> Font(R.font.hankengrotesk_regular, FontWeight.Normal) ...
+/**
+ * Schrift: Archivo (SIL OFL). Dateien: fonts/Archivo-Regular.ttf (400), Archivo-Medium.ttf (500), Archivo-Expanded-Bold.ttf (700, breit).
+ * Zahlen immer "tnum". Keine Monospace, keine Großbuchstaben-Etiketten.
+ * Desktop:  Font(resource = "fonts/Archivo-Regular.ttf", FontWeight.Normal) usw.
+ * Android:  res/font/archivo_regular.ttf, archivo_medium.ttf, archivo_expanded_bold.ttf -> Font(R.font.archivo_regular, FontWeight.Normal) ...
+ */
 object AutoDjType {
-    lateinit var family: FontFamily
-    private fun style(size: Int, lh: Float, track: Float, w: FontWeight) =
-        TextStyle(fontFamily = family, fontSize = size.sp, lineHeight = (size * lh).sp, letterSpacing = (size * track).sp, fontWeight = w, fontFeatureSettings = "tnum")
-    // Fünf Stufen, mehr gibt es nicht. Desktop-Werte; Telefon in Klammern.
-    val display get() = style(64, .9f, -.04f, FontWeight.Medium)   // BPM an den Decks (Telefon 52)
-    val head get() = style(36, 1f, -.035f, FontWeight.Medium)      // Kopfzahl im Transport, Kachel-Überschrift groß (Telefon 30)
-    val lead get() = style(22, 1.15f, -.02f, FontWeight.Medium)    // Kachel-Titel, Songname am Deck
-    val body get() = style(15, 1.45f, -.005f, FontWeight.Normal)   // Buttons, Listen. Zeilen 17sp Medium für Songnamen
-    val small get() = style(13, 1.4f, 0f, FontWeight.Normal)       // Zweittext, Werte unter Knöpfen. Nie kleiner als 13.
+    lateinit var text: FontFamily      // Regular + Medium
+    lateinit var wide: FontFamily      // Expanded Bold (eine Datei, Gewicht Bold)
+    private fun text(size: Int, lh: Float, track: Float, w: FontWeight) =
+        TextStyle(fontFamily = text, fontSize = size.sp, lineHeight = (size * lh).sp, letterSpacing = (size * track).sp, fontWeight = w, fontFeatureSettings = "tnum")
+    private fun wide(size: Int, lh: Float, track: Float) =
+        TextStyle(fontFamily = wide, fontSize = size.sp, lineHeight = (size * lh).sp, letterSpacing = (size * track).sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
+    // Fünf Stufen (Desktop-Werte; Telefon: display 44, head 24).
+    val display get() = wide(56, .95f, -.02f)                // NUR Zahlen: BPM an der Scheibe, Restzeit, große Kopfzahl
+    val head get() = wide(28, 1f, -.015f)                    // Songname am Deck, Effekt-Titel, "Songs hinzufügen"
+    val lead get() = text(18, 1.2f, 0f, FontWeight.Medium)   // Untertitel, Listennamen, Segment-Titel
+    val body get() = text(15, 1.4f, 0f, FontWeight.Normal)   // Buttons, Werte (Medium für Songnamen in Zeilen)
+    val small get() = text(13, 1.4f, 0f, FontWeight.Normal)  // Zweittext. Nie kleiner als 13.
+    val bpmRow get() = wide(20, 1f, 0f)                      // BPM in Listen und Mix-Zeilen
+    val brand get() = wide(17, 1f, 0f)                       // "AUTO·DJ" mit orangem Punkt
 }
 
 object AutoDjSpace {
     val margin = 12.dp; val gap = 8.dp; val tilePad = 16.dp; val rowGap = 4.dp
-    val control = 44.dp; val controlSm = 36.dp; val bar = 56.dp; val row = 60.dp; val touchMin = 44.dp
-    val phoneMargin = 8.dp; val phoneGap = 6.dp
+    val control = 44.dp; val controlSm = 34.dp; val bar = 56.dp; val row = 64.dp; val touchMin = 44.dp
+    val phoneMargin = 8.dp; val phoneGap = 6.dp; val phoneTilePad = 12.dp
 }
-val AutoDjShape = RoundedCornerShape(6.dp)   // der einzige Radius; Knöpfe und Punkte sind Kreise
-// Keine Schatten, keine Verläufe, keine Linien. Fläche trennt sich durch Tonstufe.
+
+/** Kachel: Kerbe oben rechts (Telefon 10 dp). Flache Kacheln (Displays, Sequencer) und alles Bedienbare: 3 dp. Knöpfe sind Kreise. */
+val AutoDjTileShape = CutCornerShape(topEnd = 14.dp)
+val AutoDjTileShapePhone = CutCornerShape(topEnd = 10.dp)
+val AutoDjShape = RoundedCornerShape(3.dp)
+val AutoDjChipShape = RoundedCornerShape(2.dp)
+// Keine Schatten, keine Verläufe, keine Linien, kein Glas, kein Glühen. Fläche trennt sich durch Tonstufe (tile -> tileSunk -> tile2 -> tile3).
 
 object AutoDjMotion {
     val out = CubicBezierEasing(.2f, 0f, 0f, 1f)          // Eintritt, Slider, alles Sichtbare
@@ -112,21 +131,27 @@ object AutoDjMotion {
     const val rise = 16         // dp, Weg beim Einblenden
     val pressSpring = spring<Float>(dampingRatio = .7f, stiffness = 800f)
     const val pressScale = .97f
+    const val padPressScale = .965f
 }
 
 /**
- * Der Puls: eine einzige Takt-Phase treibt alles, was im Takt atmet.
- * beatPhase = Position im aktuellen Schlag (0..1), beatIndex = 0..3 im Takt. Beides kommt aus dem Engine-Status.
- * Steht nichts auf Play oder ist "Bewegung reduzieren" an: 0.
+ * Der Puls: eine einzige Takt-Phase treibt alles, was im Takt atmet (aus Beat/DjStatus, nie aus einer eigenen Uhr).
+ * beatPhase = Position im aktuellen Schlag (0..1), beatIndex = 0..3. Steht nichts auf Play oder "Bewegung reduzieren": 0.
  */
 fun pulse(beatPhase: Float, beatIndex: Int, playing: Boolean, reduceMotion: Boolean): Float {
     if (!playing || reduceMotion) return 0f
     val d = 1f - beatPhase
     return d * d * d * if (beatIndex == 0) 1f else .55f
 }
-/** Kachelfarbe unter Puls: bis zu 6 % Richtung ink. Nur auf Kacheln mit Rolle "pulse" (Transport-BPM, Deck-Kopf, Beat-Punkte). */
-fun pulseTile(base: Color, ink: Color, p: Float): Color = lerp(base, ink, p * .06f)
+/** Kachelfarbe unter Puls: bis zu 6 % Richtung ink (Nabe der Scheibe: 8 %). Nur Kacheln mit Rolle "pulse". */
+fun pulseTile(base: Color, ink: Color, p: Float, strength: Float = .06f): Color = lerp(base, ink, p * strength)
+
+/**
+ * Taktscheibe: Winkel der Drehung in Grad. Genau eine Umdrehung pro Takt, vom Engine-Status getrieben.
+ * Bei "Bewegung reduzieren" oder Pause: der Aufrufer zeichnet den Ring ohne Drehung (Winkel 0).
+ */
+fun platterAngle(beatPhase: Float, beatIndex: Int): Float = 360f * (beatIndex + beatPhase) / 4f
 
 @Composable
-fun AutoDjTheme(night: Boolean, content: @Composable () -> Unit) =
-    CompositionLocalProvider(LocalAutoDjColors provides if (night) NachtColors else TagColors, content = content)
+fun AutoDjTheme(content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalAutoDjColors provides KabineColors, content = content)
