@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.dj.DjColors
+import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.EchoTimes
@@ -65,6 +66,10 @@ fun EffectsScreen(dj: DjController, modifier: Modifier = Modifier, onCaptureToGr
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(if (wide) 16.dp else 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                TabTip(
+                    "effects", "Effekte wirken auf alles, was du hörst. Echo, Hall und Flanger schaltest du ein und aus, Beat Roll und Stutter wirken, solange du die Taste hältst.",
+                    lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 3,
+                )
                 ClockBanner(dj)
                 if (wide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

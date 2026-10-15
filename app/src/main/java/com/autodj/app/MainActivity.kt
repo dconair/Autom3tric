@@ -14,6 +14,7 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val vm: AutoDjViewModel by viewModels()
+    private val prefs by lazy { getSharedPreferences("autodj", MODE_PRIVATE) }
 
     /** True when the chooser was opened from the granular plugin: the files then go straight into the instrument. */
     private var pickForGranular = false
@@ -74,6 +75,8 @@ class MainActivity : ComponentActivity() {
                         exportBits = bits
                         saveMix.launch("AutoDJ-Mix.wav")
                     },
+                    guideSeen = prefs.getBoolean(GUIDE_SEEN, false),
+                    onGuideSeen = { prefs.edit().putBoolean(GUIDE_SEEN, true).apply() },
                 )
             }
         }
@@ -89,3 +92,5 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 }
+
+private const val GUIDE_SEEN = "guide_seen"

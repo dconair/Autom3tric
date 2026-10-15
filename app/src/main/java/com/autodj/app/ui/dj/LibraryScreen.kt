@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.dj.DjColors
+import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.Overview
@@ -93,6 +94,10 @@ fun LibraryContent(
                 Button(onClick = onPickFiles) { Text("Songs hinzufügen") }
             }
             Spacer(Modifier.height(12.dp))
+            TabTip(
+                "library", "Hier liegen deine Songs. Mit „A“ und „B“ lädst du einen auf ein Deck, mit „In die Mix-Liste“ nimmt ihn der Auto-Mix, mit „Granular“ spielst du damit im Plugin.",
+                Modifier.padding(bottom = 8.dp), lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 0,
+            )
             if (tracks.isEmpty()) {
                 EmptyState(Modifier.weight(1f))
             } else {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -50,11 +52,22 @@ private enum class Tab(val label: String, val glyph: String) {
 }
 
 @Composable
-fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onPickGranularFiles: () -> Unit = {}, onExport: (bits: Int) -> Unit = {}) {
+fun AutoDjApp(
+    vm: AutoDjViewModel,
+    onPickFiles: () -> Unit = {},
+    onPickGranularFiles: () -> Unit = {},
+    onExport: (bits: Int) -> Unit = {},
+    guideSeen: Boolean = true,
+    onGuideSeen: () -> Unit = {},
+) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val guide = remember { GuideState(guideSeen, onGuideSeen) }
+    var beatRequest by rememberSaveable { mutableIntStateOf(0) }
+    CompositionLocalProvider(LocalGuide provides guide) {
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TopBar(vm) },
+        topBar = { TopBar(vm, onGuide = { guide.show() }) },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 Tab.entries.forEachIndexed { i, t ->
@@ -87,10 +100,37 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onPickGranularF
                 })
                 Tab.Pads -> PadsScreen(vm.dj)
                 Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
-                Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost(onPickGranularFiles) })
+                Tab.Granular -> InstrumentScreen(
+                    remember(vm) { vm.asInstrumentHost(onPickGranularFiles) },
+                    onShowGuide = { guide.show(Guides.PLUGIN) }, beatRequest = beatRequest,
+                )
                 Tab.Debug -> DeveloperTools(vm)
             }
         }
+    }
+    GuideOverlay(guide, onAction = { target ->
+        when (target) {
+            GuideTarget.LoadDemoSongs -> {
+                vm.dj.addDemoTracks()
+                tab = Tab.Library.ordinal
+            }
+            GuideTarget.Library -> tab = Tab.Library.ordinal
+            GuideTarget.AutoMix -> tab = Tab.Mix.ordinal
+            GuideTarget.Decks -> tab = Tab.Decks.ordinal
+            GuideTarget.Effects -> tab = Tab.Effects.ordinal
+            GuideTarget.Pads -> tab = Tab.Pads.ordinal
+            GuideTarget.Plugin -> tab = Tab.Granular.ordinal
+            GuideTarget.PluginLoadFile -> {
+                tab = Tab.Granular.ordinal
+                onPickGranularFiles()
+            }
+            GuideTarget.PluginBeatStart -> {
+                tab = Tab.Granular.ordinal
+                beatRequest += 1
+            }
+        }
+    })
+    }
     }
 }
 
@@ -116,7 +156,7 @@ private fun DeveloperTools(vm: AutoDjViewModel) {
 }
 
 @Composable
-private fun TopBar(vm: AutoDjViewModel) {
+private fun TopBar(vm: AutoDjViewModel, onGuide: () -> Unit) {
     Column(Modifier.statusBarsPadding().background(MaterialTheme.colorScheme.background)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -128,6 +168,8 @@ private fun TopBar(vm: AutoDjViewModel) {
                 colors = if (vm.running) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
             ) { Text(if (vm.running) "Stop audio" else "Start audio") }
             DebugChip(vm)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onGuide) { Text("? Anleitung") }
         }
         vm.message?.let { msg ->
             Row(

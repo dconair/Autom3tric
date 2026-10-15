@@ -8,6 +8,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import com.autodj.app.ui.GuideOverlay
+import com.autodj.app.ui.GuideState
+import com.autodj.app.ui.GuideTarget
+import com.autodj.app.ui.Guides
+import com.autodj.app.ui.LocalGuide
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,6 +107,8 @@ private fun droppedAudioPaths(event: DragAndDropEvent): List<String> {
 private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
     val tabState = remember { mutableIntStateOf(0) }
     var tab by tabState
+    val guide = remember { GuideState(GuideSeenFile.exists(), GuideSeenFile::markSeen) }
+    var beatRequest by remember { mutableIntStateOf(0) }
     LaunchedEffect(host) {
         host.filePicker = { pickAudioFiles() }
         while (true) {
@@ -122,13 +134,21 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
             }
         }
     }
+    CompositionLocalProvider(LocalGuide provides guide) {
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().background(DjColors.bg).dragAndDropTarget(
             shouldStartDragAndDrop = { event -> event.dragData() is DragData.FilesList },
             target = dropTarget,
         ),
     ) {
-        DjTabBar(Tabs, tab, { tab = it }) { StatusChip(host) }
+        DjTabBar(Tabs, tab, { tab = it }) {
+            StatusChip(host)
+            Text(
+                "? Anleitung", color = DjColors.deckA, fontSize = 14.sp,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { guide.show() }.padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
         Box(Modifier.weight(1f)) {
             when (tab) {
                 0 -> LibraryScreen(
@@ -168,12 +188,50 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                     }
                 })
                 4 -> PadsScreen(host.dj)
-                else -> InstrumentScreen(host)
+                else -> InstrumentScreen(host, onShowGuide = { guide.show(Guides.PLUGIN) }, beatRequest = beatRequest)
             }
         }
         val m = host.message
         if (m != null) {
             Text(m, color = DjColors.warn, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().background(DjColors.panel).padding(horizontal = 16.dp, vertical = 6.dp))
+        }
+    }
+    GuideOverlay(guide, onAction = { target ->
+        when (target) {
+            GuideTarget.LoadDemoSongs -> {
+                host.dj.addDemoTracks()
+                tab = 0
+            }
+            GuideTarget.Library -> tab = 0
+            GuideTarget.AutoMix -> tab = 1
+            GuideTarget.Decks -> tab = 2
+            GuideTarget.Effects -> tab = 3
+            GuideTarget.Pads -> tab = 4
+            GuideTarget.Plugin -> tab = GRANULAR_TAB
+            GuideTarget.PluginLoadFile -> {
+                tab = GRANULAR_TAB
+                host.filePicker?.invoke()?.let { host.loadPaths(it) }
+            }
+            GuideTarget.PluginBeatStart -> {
+                tab = GRANULAR_TAB
+                beatRequest += 1
+            }
+        }
+    })
+    }
+    }
+}
+
+/** "The first-start guide was shown": an empty marker file in the user's home, so that the guide opens by itself only once. */
+private object GuideSeenFile {
+    private val file = File(System.getProperty("user.home") ?: ".", ".autodj/guide-seen")
+
+    fun exists(): Boolean = runCatching { file.exists() }.getOrDefault(false)
+
+    fun markSeen() {
+        runCatching {
+            file.parentFile?.mkdirs()
+            file.writeText("1")
         }
     }
 }

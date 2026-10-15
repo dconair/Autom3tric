@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.dj.DjColors
+import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.LengthChoice
@@ -69,6 +70,10 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
             if (wide) {
                 Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TabTip(
+                            "mix", "Der Auto-Mix spielt die Liste nacheinander und blendet selbst über: Tempo und Takt werden angeglichen. Songs hinzufügen, ▶ drücken, fertig.",
+                            lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 1,
+                        )
                         ListHeader(dj, mix, onGoToLibrary, narrow = false)
                         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) { mixRows(dj, mix) }
                     }
@@ -81,6 +86,12 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
             } else {
                 LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     item { Spacer(Modifier.height(2.dp)) }
+                    item {
+                        TabTip(
+                            "mix", "Der Auto-Mix spielt die Liste nacheinander und blendet selbst über. Songs hinzufügen, ▶ drücken, fertig.",
+                            lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 1,
+                        )
+                    }
                     item { TransportPanel(mix) }
                     item { ListHeader(dj, mix, onGoToLibrary, narrow = true) }
                     mixRows(dj, mix)

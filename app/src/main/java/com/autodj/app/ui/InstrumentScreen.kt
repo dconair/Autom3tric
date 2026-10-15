@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Stable
@@ -143,7 +144,7 @@ fun formatDb(v: Float) = String.format(Locale.US, "%+.1f dB", v)
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShowGuide: (() -> Unit)? = null) {
+fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShowGuide: (() -> Unit)? = null, beatRequest: Int = 0) {
     val voice = host.selectedVoice
     val p = InstrumentParams.of(host, voice)
     if (p == null) {
@@ -158,6 +159,10 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShow
     val peaks = host.peaksFor(slot)
     val info = host.sourceInfoFor(slot)
     val envNames = p.envShape.spec.enumNames
+    // the guide's "Beat-Start" button: set up and start a beat once per request
+    LaunchedEffect(beatRequest) {
+        if (beatRequest > 0 && host.pattern != null) startBeat(host, p, voice, userSource)
+    }
 
     fun start() = host.noteOn(voice, 0f, 1f)
     fun stop() = host.noteOff(voice)

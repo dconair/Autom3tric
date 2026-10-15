@@ -17,6 +17,14 @@ Oben (Mac) bzw. unten (Android, dort zusätzlich ein Tab „Entwickler“ mit Pa
 | **Pads** | 16 Drum-Pads (Kick, Snare, Hats, Percussion, Crash, Riser …, synthetisch erzeugt) und ein 16-Step-Sequencer mit Mustern (House, Techno, Hip-Hop, Breakbeat, leer), Swing und Lautstärke. Der Sequencer läuft im Takt des Auto-Mixes bzw. des laufenden Decks, sonst mit eigenem Tempo. |
 | **Granular** | Das Granular-Instrument (siehe unten); seine Quellen sind die Demo-Klänge, Songs aus der Bibliothek und eingefangene Mix-Ausschnitte. |
 
+**Anleitung in der App:** Beim ersten Start öffnet sich eine Schritt-für-Schritt-Anleitung mit kleinen Animationen (zwei Kapitel: *Auto-DJ* und *Granular-Plugin*).
+Du findest sie jederzeit über **„? Anleitung“** (oben rechts; im Plugin im Kopf) und über die Hinweise oben in jedem Tab. Jeder Schritt hat einen
+„Jetzt ausprobieren“-Knopf (Demo-Songs laden, zum Tab springen, Datei wählen, Beat-Start).
+
+| Anleitung: Auto-Mix | Anleitung: Beat im Plugin |
+|---|---|
+| ![Anleitung Auto-Mix](docs/screenshots/guide_auto_mix.png) | ![Anleitung Beat](docs/screenshots/guide_plugin_beat.png) |
+
 | Auto-Mix (läuft) | Decks | Effekte | Pads + Sequencer |
 |---|---|---|---|
 | ![Auto-Mix](docs/screenshots/mix_playing.png) | ![Decks](docs/screenshots/decks_playing.png) | ![Effekte](docs/screenshots/effects_on_desktop.png) | ![Pads](docs/screenshots/pads_playing_desktop.png) |
@@ -120,6 +128,17 @@ Aufbau und Funktionen folgen dem Granular-Instrument, das du als Referenz genann
 Zellraster (Berührung = Spielen), Modi **hold / step / keys**, 8 oder 16 **Cells** mit Pads, Hüllkurven-Auswahl (6 Formen) und
 neun Regler: *space, chaos | length, grains, position | tune, output*. Der große *grains*-Regler steuert die Dichte, im
 Sync-Modus die Taktteilung. Name, Farben und Zeichencode sind eigen, es sind keine Marken-Assets übernommen.
+
+**Eigene Dateien und Beats im Plugin.** Mit **„+ Datei laden“** (am Mac auch per Drag & Drop ins Fenster) legst du einen Song oder ein Geräusch direkt als Quelle in die gewählte Stimme;
+der Fortschritt steht im Kopf, Fehler erscheinen auf Deutsch. Im Modus **step** zeigt das Panel **„Beat bauen“** ein Raster aus 16 Schritten mal Zellen (Stücke) der Datei:
+Punkt antippen = dieser Schritt spielt dieses Stück, noch einmal = Pause. Vorlagen (Original, Rückwärts, Stotter, Synkope, Vierer, Zufall, Leer) geben einen Start,
+**Beat-Start** richtet alles ein (Drums als Quelle, 16 Zellen, Korn genau im Takt, weiche Hüllkurve) und spielt sofort. Das Raster läuft im Takt der Musik, sobald ein Deck oder der Auto-Mix spielt.
+Die Zeile unten im Plugin erklärt jeden Regler, den du anfasst (oder über den du mit der Maus fährst).
+
+**Klang.** Die eingebauten Quellen (pad, drums, pluck, bass) sind neu geschrieben (bandbegrenzte Wellenformen, nahtlose Schleifen, ≈ −15 dB RMS), die Pads sind leiser voreingestellt,
+und Song-Analyse pegelt auf dasselbe Niveau. `audio_audit` (native/tools) rendert 16 Szenen offline und misst Spitze, RMS, Knackser, Gleichanteil und Spektrum:
+keine Knackser, kein Clipping (Spitzen ≤ 0,89), Gleichanteil ≈ 0; Aliasing wurde in den Spektren nicht gefunden. **Bekannt offen:** Die Decks laufen immer durch den Time-Stretcher, auch bei Tempo 100 %;
+ein Bypass bei Originaltempo (etwas sauberer) fehlt noch. Gehört wurde nichts auf echter Hardware.
 
 | hold | step (16 Cells) | keys + sync |
 |---|---|---|

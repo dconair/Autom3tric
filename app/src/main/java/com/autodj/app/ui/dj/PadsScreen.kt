@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.autodj.app.dj.DjColors
+import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.PAD_COUNT
@@ -72,6 +73,10 @@ fun PadsScreen(dj: DjController, modifier: Modifier = Modifier) {
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(if (wide) 16.dp else 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                TabTip(
+                    "pads", "Tippe die Pads, um Drums zu spielen. Im Raster darunter setzt du Punkte: Der Sequenzer spielt sie im Takt der Musik. Erst „Sequenzer“ einschalten.",
+                    lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 4,
+                )
                 ClockBanner(dj)
                 SequencerBar(perf)
                 if (wide) {

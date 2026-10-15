@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.autodj.app.audio.DeckSnapshot
 import com.autodj.app.dj.DeckController
 import com.autodj.app.dj.DjColors
+import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.MixState
@@ -72,6 +73,10 @@ fun DecksScreen(dj: DjController, onGoToLibrary: () -> Unit, modifier: Modifier 
             val wide = maxWidth >= 980.dp
             val busy = dj.mix.state == MixState.Playing || dj.mix.state == MixState.Loading
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(if (wide) 16.dp else 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TabTip(
+                    "decks", "Zwei Plattenspieler zum Selbermixen: Lade je einen Song auf A und B (Knöpfe in der Bibliothek), starte beide, drücke Sync und blende mit dem Crossfader über.",
+                    lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 2,
+                )
                 if (busy) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(DjColors.warn.copy(alpha = 0.15f)).padding(horizontal = 12.dp, vertical = 8.dp),

@@ -55,6 +55,7 @@ val syncSharedSources = tasks.register<Sync>("syncSharedSources") {
             "com/autodj/app/ui/dj/MixScreen.kt",
             "com/autodj/app/ui/dj/PadsScreen.kt",
             "com/autodj/app/ui/BeatBuilder.kt",
+            "com/autodj/app/ui/Guide.kt",
             "com/autodj/app/ui/Help.kt",
             "com/autodj/app/ui/Theme.kt",
             "com/autodj/app/ui/InstrumentControls.kt",

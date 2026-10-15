@@ -207,6 +207,13 @@ Das Muster ist Zustand des Knotens und wird mit `PadRow`-Commands gesetzt, Treff
 
 Grenzen: Kein Sampler (eigene Klänge auf Pads), keine Velocity-/Aufnahmefunktion für die Pads (die Steps haben nur an/aus plus ein festes Akzentprofil für Hats/Percussion), die Effekte haben keine Automation.
 
+### 5b. Muster-Sequenzer, eigene Dateien, Anleitung
+
+- **Muster (`seq_on`)**: Im Step-Modus kann der Knoten statt der Zellfolge ein 16-Schritt-Muster spielen (`GranularSteps`-Command: Maske + 4 Bit Zelle je Schritt). Das Raster liegt absolut auf dem Takt (MasterClock: Plan > Deck-Raster > freie Uhr), Pausen setzen keinen Grain; Sync-Grains kommen über `forEachGridCrossing`. Die UI hält das Muster als Compose-State (`GranularPattern`) und schickt es bei jeder Änderung.
+- **Showcase-Quellen** (`engine/Showcase`): additive, bandbegrenzte Wellentabellen und PadKit-Drums, nahtlos geschleift, auf ≈ −15 dB RMS. `audio_audit` misst sie und Kombinationen (Granular + Decks + Pads + Effekte).
+- **Eigene Dateien** laufen über `DjController.loadFilesIntoGranular` (Decoder → analysieren → Quelle), Mac zusätzlich Drag & Drop.
+- **Anleitung** (`ui/Guide.kt`): Lektionen als Daten (`Guides`), Animationen als Canvas-Szenen mit Phase 0..1 (in dp gezeichnet), `GuideState` (offen/Schritt/ausgeblendete Hinweise), Zustand „gesehen“ je Plattform (SharedPreferences bzw. `~/.autodj/guide-seen`).
+
 ## 6. Wichtige Entscheidungen
 
 | Entscheidung | Begründung | Alternative / Preis |
