@@ -1,7 +1,8 @@
 // Referenz-Tokens der Auto-DJ-Designsprache "Kabine" (v2). Compose, gemeinsam für Android und Desktop.
 // Nur Vorlage zum Übernehmen: nicht Teil des Gradle-Builds. Werte 1:1 aus DESIGN.md §3 und mockups/prototype.html.
 // Rollennamen sind identisch zu v1 (Ds.c.tile, Ds.c.ink ...): der Umbau ändert vor allem Werte und Formen.
-// Neu: tileSunk, screenBand, deckA/deckB/signal, good, Archivo statt Hanken, Kerbe statt Radius 6, KEINE Tag/Nacht-Variante.
+// Neu: tileSunk, screenBand, deckA/deckB/signal, good, Archivo statt Hanken, Kerbe statt Radius 6.
+// v2.1: sechs Farbschemata (Schemes), drei Looks (AutoDjLook), Wellen-Stil, Deck-Ansicht, Modul-Raster. Siehe DESIGN.md §10.
 package com.autodj.app.design
 
 import androidx.compose.animation.core.CubicBezierEasing
@@ -46,6 +47,7 @@ data class AutoDjColors(
     val padKick: Color, val padSnare: Color, val padHat: Color, val padPerc: Color, val padFx: Color,        // Pad-Flächen (= Licht)
     val padKickLit: Color, val padSnareLit: Color, val padHatLit: Color, val padPercLit: Color, val padFxLit: Color,
     val good: Color, val warn: Color, val bad: Color, // nur kleine Quadrate, Tags, Kill
+    val wave1: Color = Color(0xFFFF5A1F), val wave2: Color = Color(0xFFF1EEE6), val wave3: Color = Color(0xFF8A97A6), // Wellen-Stil "3 Bänder": Bass, Mitten, Höhen
 )
 
 val KabineColors = AutoDjColors(
@@ -61,6 +63,118 @@ val KabineColors = AutoDjColors(
     // Gedrückt: Helligkeit +18 %, Skala 0.965 (in der Pad-Komponente), die Lit-Werte gelten für Schritte auf dem Display
     padKickLit = Color(0xFFFF5A1F), padSnareLit = Color(0xFFF1EEE6), padHatLit = Color(0xFF8A97A6), padPercLit = Color(0xFFA8C23A), padFxLit = Color(0xFFFFC857),
     good = Color(0xFF8FE388), warn = Color(0xFFFFC857), bad = Color(0xFFE5484D),
+)
+
+// Weitere Schemata (§10.4). Gleiche Rollen, andere Werte. Displays (screen*) bleiben dunkel.
+val EisColors = KabineColors.copy(
+    ground = Color(0xFF05080D), tile = Color(0xFF0C131C), tileSunk = Color(0xFF131E2B), tile2 = Color(0xFF1D2C3F), tile3 = Color(0xFF2B4059),
+    ink = Color(0xFFE8F2FF), ink2 = Color(0xFF8FA6BF), onInk = Color(0xFF04080D),
+    screen = Color(0xFF02050A), screen2 = Color(0xFF131E2B), screen3 = Color(0xFF1D2C3F), screenBand = Color(0xFF08101A), screenInk = Color(0xFFE8F2FF), screenDim = Color(0xFF8FA6BF),
+    accent = Color(0xFFE8F2FF), accentLit = Color(0xFFE8F2FF), onAccent = Color(0xFF04080D),
+    deckA = Color(0xFF4DB8FF), deckB = Color(0xFF5CF2C0), signal = Color(0xFF5CF2C0),
+    deckALit = Color(0xFF4DB8FF), deckBLit = Color(0xFF5CF2C0), deckAField = Color(0xFF1D2C3F), deckBField = Color(0xFF1D2C3F),
+    padKick = Color(0xFF4DB8FF), padSnare = Color(0xFFE8F2FF), padHat = Color(0xFF7C93AD), padPerc = Color(0xFF5CF2C0), padFx = Color(0xFFFFD166),
+    padKickLit = Color(0xFF4DB8FF), padSnareLit = Color(0xFFE8F2FF), padHatLit = Color(0xFF7C93AD), padPercLit = Color(0xFF5CF2C0), padFxLit = Color(0xFFFFD166),
+    good = Color(0xFF5CF2C0), warn = Color(0xFFFFD166), bad = Color(0xFFFF5C6C),
+    wave1 = Color(0xFF1E6FD9), wave2 = Color(0xFF4DB8FF), wave3 = Color(0xFFE8F2FF),
+)
+val AmberColors = KabineColors.copy(
+    ground = Color(0xFF0B0804), tile = Color(0xFF15100A), tileSunk = Color(0xFF1E170E), tile2 = Color(0xFF2C2214), tile3 = Color(0xFF40321D),
+    ink = Color(0xFFFFE9C7), ink2 = Color(0xFFA8957A), onInk = Color(0xFF0B0804),
+    screen = Color(0xFF050301), screen2 = Color(0xFF1E170E), screen3 = Color(0xFF2C2214), screenBand = Color(0xFF0D0905), screenInk = Color(0xFFFFE9C7), screenDim = Color(0xFFA8957A),
+    accent = Color(0xFFFFE9C7), accentLit = Color(0xFFFFE9C7), onAccent = Color(0xFF0B0804),
+    deckA = Color(0xFFFFB000), deckB = Color(0xFFFF6A3D), signal = Color(0xFFFF6A3D),
+    deckALit = Color(0xFFFFB000), deckBLit = Color(0xFFFF6A3D), deckAField = Color(0xFF2C2214), deckBField = Color(0xFF2C2214),
+    padKick = Color(0xFFFF6A3D), padSnare = Color(0xFFFFE9C7), padHat = Color(0xFFA8957A), padPerc = Color(0xFFFFB000), padFx = Color(0xFFE8D23A),
+    padKickLit = Color(0xFFFF6A3D), padSnareLit = Color(0xFFFFE9C7), padHatLit = Color(0xFFA8957A), padPercLit = Color(0xFFFFB000), padFxLit = Color(0xFFE8D23A),
+    good = Color(0xFFB7E36B), warn = Color(0xFFFFB000), bad = Color(0xFFFF4D3D),
+    wave1 = Color(0xFFFF6A3D), wave2 = Color(0xFFFFB000), wave3 = Color(0xFFFFE9C7),
+)
+val NeonColors = KabineColors.copy(
+    ground = Color(0xFF0B0912), tile = Color(0xFF14111F), tileSunk = Color(0xFF1D1830), tile2 = Color(0xFF2B2447), tile3 = Color(0xFF3E3566),
+    ink = Color(0xFFF4F0FF), ink2 = Color(0xFFA59BC4), onInk = Color(0xFF0B0912),
+    screen = Color(0xFF05040A), screen2 = Color(0xFF1D1830), screen3 = Color(0xFF2B2447), screenBand = Color(0xFF0D0A18), screenInk = Color(0xFFF4F0FF), screenDim = Color(0xFFA59BC4),
+    accent = Color(0xFFF4F0FF), accentLit = Color(0xFFF4F0FF), onAccent = Color(0xFF0B0912),
+    deckA = Color(0xFFC6FF3D), deckB = Color(0xFFFF3DAE), signal = Color(0xFFFF3DAE),
+    deckALit = Color(0xFFC6FF3D), deckBLit = Color(0xFFFF3DAE), deckAField = Color(0xFF2B2447), deckBField = Color(0xFF2B2447),
+    padKick = Color(0xFFFF3DAE), padSnare = Color(0xFFF4F0FF), padHat = Color(0xFF7CE3FF), padPerc = Color(0xFFC6FF3D), padFx = Color(0xFFFFD23D),
+    padKickLit = Color(0xFFFF3DAE), padSnareLit = Color(0xFFF4F0FF), padHatLit = Color(0xFF7CE3FF), padPercLit = Color(0xFFC6FF3D), padFxLit = Color(0xFFFFD23D),
+    good = Color(0xFF7CF59A), warn = Color(0xFFFFD23D), bad = Color(0xFFFF4D6D),
+    wave1 = Color(0xFFFF3DAE), wave2 = Color(0xFFC6FF3D), wave3 = Color(0xFF7CE3FF),
+)
+val PapierColors = KabineColors.copy(   // hell; Displays bleiben dunkel
+    ground = Color(0xFFE4E0D6), tile = Color(0xFFF3F0E9), tileSunk = Color(0xFFE5E0D4), tile2 = Color(0xFFD5CFC1), tile3 = Color(0xFFBFB8A8),
+    ink = Color(0xFF1A1714), ink2 = Color(0xFF5E574E), onInk = Color(0xFFF6F3EC),
+    screen = Color(0xFF14120F), screen2 = Color(0xFF26221D), screen3 = Color(0xFF383229), screenBand = Color(0xFF1C1915), screenInk = Color(0xFFF1EEE6), screenDim = Color(0xFFA39B8E),
+    accent = Color(0xFF1A1714), accentLit = Color(0xFF1A1714), onAccent = Color(0xFFF6F3EC),
+    deckA = Color(0xFF2F5FE0), deckB = Color(0xFFC0390E), signal = Color(0xFFC0390E),
+    deckALit = Color(0xFF2F5FE0), deckBLit = Color(0xFFC0390E), deckAField = Color(0xFFD5CFC1), deckBField = Color(0xFFD5CFC1),
+    padKick = Color(0xFFFF7A4D), padSnare = Color(0xFFFFFFFF), padHat = Color(0xFF9DB0C4), padPerc = Color(0xFF9BCB4E), padFx = Color(0xFFFFC84A),
+    padKickLit = Color(0xFFFF7A4D), padSnareLit = Color(0xFFFFFFFF), padHatLit = Color(0xFF9DB0C4), padPercLit = Color(0xFF9BCB4E), padFxLit = Color(0xFFFFC84A),
+    good = Color(0xFF2E9E4F), warn = Color(0xFFB97A00), bad = Color(0xFFD3322F),
+    wave1 = Color(0xFFFF7A4D), wave2 = Color(0xFFF1EEE6), wave3 = Color(0xFF7DA2FF),
+)
+val MonoColors = KabineColors.copy(
+    ground = Color(0xFF0C0C0C), tile = Color(0xFF161616), tileSunk = Color(0xFF1F1F1F), tile2 = Color(0xFF2B2B2B), tile3 = Color(0xFF3A3A3A),
+    ink = Color(0xFFFFFFFF), ink2 = Color(0xFF9A9A9A), onInk = Color(0xFF0C0C0C),
+    screen = Color(0xFF050505), screen2 = Color(0xFF1F1F1F), screen3 = Color(0xFF2B2B2B), screenBand = Color(0xFF0E0E0E), screenInk = Color(0xFFFFFFFF), screenDim = Color(0xFF9A9A9A),
+    accent = Color(0xFFFFFFFF), accentLit = Color(0xFFFFFFFF), onAccent = Color(0xFF0C0C0C),
+    deckA = Color(0xFFFFFFFF), deckB = Color(0xFFFFD400), signal = Color(0xFFFFD400),
+    deckALit = Color(0xFFFFFFFF), deckBLit = Color(0xFFFFD400), deckAField = Color(0xFF2B2B2B), deckBField = Color(0xFF2B2B2B),
+    padKick = Color(0xFFFFD400), padSnare = Color(0xFFFFFFFF), padHat = Color(0xFF8C8C8C), padPerc = Color(0xFFBFBFBF), padFx = Color(0xFFE0A800),
+    padKickLit = Color(0xFFFFD400), padSnareLit = Color(0xFFFFFFFF), padHatLit = Color(0xFF8C8C8C), padPercLit = Color(0xFFBFBFBF), padFxLit = Color(0xFFE0A800),
+    good = Color(0xFF9BE08A), warn = Color(0xFFFFD400), bad = Color(0xFFFF5348),
+    wave1 = Color(0xFFFFD400), wave2 = Color(0xFFFFFFFF), wave3 = Color(0xFF8C8C8C),
+)
+
+enum class AutoDjScheme(val label: String, val colors: AutoDjColors) {
+    Kabine("Kabine", KabineColors), Eis("Eis", EisColors), Amber("Amber", AmberColors),
+    Neon("Neon", NeonColors), Papier("Papier", PapierColors), Mono("Mono", MonoColors),
+}
+
+/** Look: Form, Dichte, Schrift und Standard-Deckansicht (§10.3). Komponenten lesen daraus statt fester dp-Werte. */
+data class AutoDjLook(
+    val name: String,
+    val cut: androidx.compose.ui.unit.Dp,           // Kerbe an Kacheln
+    val radius: androidx.compose.ui.unit.Dp,        // Bedienelemente
+    val tileRadius: androidx.compose.ui.unit.Dp,    // Kacheln
+    val gap: androidx.compose.ui.unit.Dp, val margin: androidx.compose.ui.unit.Dp, val tilePad: androidx.compose.ui.unit.Dp,
+    val control: androidx.compose.ui.unit.Dp,       // Höhe Button, Tab
+    val displayBold: Boolean,                       // true: Archivo Expanded Bold für Zahlen/Überschriften, false: Archivo Medium
+    val defaultView: DeckView,
+)
+enum class DeckView { Platter, Wave, Both }
+enum class WaveStyle { Solid, Bands, Heat }
+
+val KabineLook = AutoDjLook("Kabine", 14.dp, 3.dp, 0.dp, 8.dp, 12.dp, 16.dp, 44.dp, true, DeckView.Platter)
+val PultLook = AutoDjLook("Pult", 0.dp, 0.dp, 0.dp, 3.dp, 6.dp, 12.dp, 40.dp, false, DeckView.Wave)
+val BuehneLook = AutoDjLook("Bühne", 0.dp, 14.dp, 26.dp, 12.dp, 16.dp, 20.dp, 52.dp, false, DeckView.Platter)
+val LocalAutoDjLook = staticCompositionLocalOf { KabineLook }
+
+/** Modul-Raster (§10.6): 12 × 8 Felder. Zelle = [x, y, Breite, Höhe]. Gespeichert pro Seite, nie in Pixeln. */
+const val GRID_COLS = 12
+const val GRID_ROWS = 8
+data class Cell(val x: Int, val y: Int, val w: Int, val h: Int) {
+    fun overlaps(o: Cell) = x < o.x + o.w && o.x < x + w && y < o.y + o.h && o.y < y + h
+}
+/** Das bewegte Modul behält seinen Platz, getroffene rutschen nach unten. null = passt nicht ins Raster, Bewegung verwerfen. */
+fun resolveGrid(layout: Map<String, Cell>, active: String): Map<String, Cell>? {
+    val out = layout.toMutableMap(); val placed = mutableListOf(out.getValue(active))
+    for (k in layout.keys.filter { it != active }.sortedWith(compareBy({ layout.getValue(it).y }, { layout.getValue(it).x }))) {
+        var m = out.getValue(k); var hit = placed.firstOrNull { m.overlaps(it) }
+        while (hit != null) { m = m.copy(y = hit.y + hit.h); hit = placed.firstOrNull { m.overlaps(it) } }
+        if (m.y + m.h > GRID_ROWS) return null
+        out[k] = m; placed += m
+    }
+    val a = out.getValue(active); return if (a.y + a.h <= GRID_ROWS) out else null
+}
+
+/** Einstellungen der Seite "Aussehen" (§10.7), pro Gerät gespeichert. */
+data class AppearancePrefs(
+    val look: String = "Kabine", val scheme: AutoDjScheme = AutoDjScheme.Kabine,
+    val wave: WaveStyle = WaveStyle.Solid, val view: DeckView = DeckView.Platter,
+    val order: List<String> = listOf("deckA", "deckB", "mixer", "over", "lib", "fx", "pads"),
+    val layouts: Map<String, Map<String, Cell>> = emptyMap(),   // Seite -> Modul -> Zelle
 )
 
 val LocalAutoDjColors = staticCompositionLocalOf { KabineColors }
@@ -153,5 +267,5 @@ fun pulseTile(base: Color, ink: Color, p: Float, strength: Float = .06f): Color 
 fun platterAngle(beatPhase: Float, beatIndex: Int): Float = 360f * (beatIndex + beatPhase) / 4f
 
 @Composable
-fun AutoDjTheme(content: @Composable () -> Unit) =
-    CompositionLocalProvider(LocalAutoDjColors provides KabineColors, content = content)
+fun AutoDjTheme(scheme: AutoDjScheme = AutoDjScheme.Kabine, look: AutoDjLook = KabineLook, content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalAutoDjColors provides scheme.colors, LocalAutoDjLook provides look, content = content)

@@ -1,4 +1,4 @@
-# Auto DJ: Designsprache "Kabine" (Version 2)
+# Auto DJ: Designsprache "Kabine" (Version 2.1: mit wählbaren Looks, Farbschemata und freier Anordnung, siehe §10)
 
 Stand 2026-10-15. Ersetzt die erste Fassung (helles Knochen-Grün-Brett, ins Archiv verschoben nach `archiv/v1-knochen/`). Gilt für Desktop (macOS) und Android. Diese Datei ändert keinen Code; der Code-Thread setzt sie um. Anklickbar: [mockups/prototype.html](mockups/prototype.html) (im Browser öffnen, Tabs, Pads und Halten-Flächen reagieren, die Scheiben drehen sich im Takt). Bilder: [screens/](screens/).
 
@@ -51,7 +51,7 @@ Pad-Gruppen (Fläche = Licht, alles auf schwarzem Text): Kick #FF5A1F, Snare/Cla
 
 Camelot-Chips (Datenfarbe): `hsl((n−1)·30+200, Dur 55 % / Moll 70 %, Dur 74 % / Moll 64 %)`, Text immer #0A0A0C.
 
-Regeln: Verläufe und Glühen gibt es nicht. Orange nie als Fließtextfarbe. Auf einer Fläche höchstens Knochen und Orange gleichzeitig plus Neutrales (Ausnahme Pads und Tonartenrad, das sind Datenfarben). Die helle Tag-Variante und `Ds.night` entfallen; wer später ein Hell will, leitet es aus diesen Rollen ab.
+Regeln: Verläufe und Glühen gibt es nicht. Orange nie als Fließtextfarbe. Auf einer Fläche höchstens Knochen und Orange gleichzeitig plus Neutrales (Ausnahme Pads und Tonartenrad, das sind Datenfarben). Die helle Tag-Variante und `Ds.night` entfallen; wer ein Hell will, nimmt das Schema „Papier“ (§10.4).
 
 ### 3.2 Schrift: Archivo (SIL OFL)
 
@@ -175,3 +175,111 @@ Screenshot-Test: die Bilder in `screens/` sind das Soll (Desktop-Test `:desktopA
 - Die Kerbe und die Scheibe sind aufwendiger als Standardformen: `CutCornerShape` (Compose) und ein eigener Canvas. Beides ist in Compose Desktop und Android möglich; nicht auf echter Hardware gesehen.
 - Orange hat zwei Bedeutungen (Deck B und "läuft/laut"). Bewusst so gewählt, damit die Palette bei zwei Farben bleibt; falls es in der Praxis verwechselt wird, bekommt "läuft" eine eigene Form (Quadrat statt Fläche).
 - Die Hanken-Grotesk-Schrift und die helle Fassung liegen unter `archiv/v1-knochen/` nur noch als Referenz.
+
+## 10. Looks, Farbschemata und freie Anordnung (neu in 2.1)
+
+Wunsch des Nutzers: mehrere Designs zur Auswahl, mit Farbschemata, und die Elemente selbst platzieren können. Der Prototyp ([mockups/prototype.html](mockups/prototype.html), Zahnrad-Symbol oben rechts oder `#look`) zeigt alles live. Die Kabine aus §2 bis §9 bleibt der Standard und der Ausgangspunkt für alle weiteren Looks.
+
+### 10.1 Was die Recherche ergab
+
+Quellen waren Websuchen, keine eigenen Tests der Programme: Eindrücke, keine Messwerte.
+
+- **VirtualDJ** gilt als die am stärksten anpassbare Software: Layouts (Starter, Essentials, Pro, Performance) plus herunterladbare Skins ([DJ.Studio-Leitfaden](https://dj.studio/blog/ux-buyers-guide-mixing-software)). Serato, Traktor und rekordbox bieten kaum Skins ([Forum](https://community.enginedj.com/t/lord-have-mercy-serato-acquired-by-alphatheta-corporation/49775?page=19), Nutzeraussage).
+- **djay** hat feste Optik, aber Ansichten: Wellen waagerecht oder senkrecht, Plattenteller ein oder aus ([Algoriddim-Handbuch](https://help.algoriddim.com/user-manual/djay-pro-windows/getting-started/decks)). Nutzer wünschen sich mehr Platz-Kontrolle, etwa die Bibliothek neben allen Reglern ([Forum](https://community.algoriddim.com/t/allow-library-visibility-with-all-essential-dj-controls/42498)).
+- **Serato** erlaubt Wellen waagerecht oder senkrecht, zwei oder vier Decks und anordenbare Bereiche (Prepare, History, Browse); **rekordbox** trennt einen Vorbereitungs- und einen Auftrittsmodus.
+- **Wellenfarben:** rekordbox kennt Blau, RGB und 3 Bänder; Serato färbt nach Frequenz (Rot Bass, Grün Mitten, Blau Höhen); Traktor reicht von einfarbig (X-Ray) bis Vollspektrum ([Digital DJ Tips](https://www.digitaldjtips.com/?p=2475091), [Elephorm](https://www.elephorm.com/formation/maitriser-rekordbox-6/comprendre-les-differents-modes-daffichage-de-la-waveform-dans-rekordbox-6)).
+- **Ableton-Themes** (von der Community) sind nach Kontrast, Palette und Helligkeit gruppiert: hell, mittel, dunkel, ultradunkel ([CDM](https://cdm.link/bitwig-themes/)). Daraus die Idee, Schemata über die Helligkeit klar zu unterscheiden.
+
+Folgerung: Anpassung hat drei Ebenen, und die Programme wählen jeweils nur eine. Wir bieten alle drei unabhängig an: **Look** (Form, Dichte, Schrift, Aufbau des Decks), **Farbschema** (Palette) und **Anordnung** (Module auf einem Raster). Dazu kommen die Wellenform (Stil, Ansicht).
+
+### 10.2 Ein Schalter je Ebene, alles über Rollen
+
+Weil Komponenten nur Rollen kennen (§3), kostet jede Kombination nichts extra: 3 Looks × 6 Schemata × 3 Wellenstile × 3 Deck-Ansichten = 162 Zustände ohne eine Zeile Sonderlogik. Einstellungen leben in einem `AppearancePrefs` und gelten sofort, ohne Neustart.
+
+### 10.3 Looks
+
+| Wert | Kabine | Pult | Bühne |
+| --- | --- | --- | --- |
+| Charakter | Taktscheibe, Kerbe, breite Zahlen | Eckig, dicht, Welle zuerst | Rund, groß, wenig auf einmal |
+| Kachel-Kerbe | 14 dp | 0 | 0 |
+| Radius Bedienelemente | 3 dp | 0 | 14 dp |
+| Radius Kachel | 0 | 0 | 26 dp |
+| Abstand / Fensterrand | 8 / 12 dp | 3 / 6 dp | 12 / 16 dp |
+| Kachel-Innenabstand | 16 dp | 12 dp | 20 dp |
+| Bedienhöhe (Button, Tab) | 44 dp | 40 dp | 52 dp |
+| Zahlen und Überschriften | Archivo Expanded Bold | Archivo Medium | Archivo Medium |
+| Standard-Deck-Ansicht | Scheibe | Welle | Scheibe |
+
+Alles andere (Palette, Bewegung, Komponentenaufbau) ist gleich. Das Telefon nimmt dieselben Looks, mit den Abständen aus §3.3 (Pult und Bühne skalieren proportional). Ein Look ist im Code ein `AutoDjLook` (siehe [tokens/AutoDjTokens.kt](tokens/AutoDjTokens.kt)) in einem `CompositionLocal`.
+
+### 10.4 Farbschemata
+
+Jedes Schema definiert den vollständigen Rollensatz aus §3.1 (Flächen, Tinte, Deck A/B, Pad-Gruppen, Status, Display, Wellenbänder). Displays (Wellen, Sequencer, Zeitleiste) bleiben in jedem Schema dunkel, auch im hellen. Orange/Deck B heißt immer „läuft“ und „laut“.
+
+| Schema | Fläche (Fenster / Kachel) | Tinte | Deck A | Deck B | Beschreibung |
+| --- | --- | --- | --- | --- | --- |
+| Kabine | #0A0A0C / #131316 | #F1EEE6 | #F1EEE6 | #FF5A1F | Knochen und Signalorange (Standard) |
+| Eis | #05080D / #0C131C | #E8F2FF | #4DB8FF | #5CF2C0 | Eisblau auf Nachtblau, nah an Pioneer-Blau |
+| Amber | #0B0804 / #15100A | #FFE9C7 | #FFB000 | #FF6A3D | Bernstein wie ein Hardware-Display |
+| Neon | #0B0912 / #14111F | #F4F0FF | #C6FF3D | #FF3DAE | Limette und Magenta für den Club |
+| Papier | #E4E0D6 / #F3F0E9 | #1A1714 | #2F5FE0 | #C0390E | Hell, für Tageslicht |
+| Mono | #0C0C0C / #161616 | #FFFFFF | #FFFFFF | #FFD400 | Weiß mit einem einzigen Gelb |
+
+Alle Werte stehen im Prototyp (`[data-scheme=…]`) und in `AutoDjTokens.kt`. Gemessener Kontrast (WCAG): Zweittext auf Kachel 6,3 bis 7,4 in allen Schemata, Haupttext über 15; Text auf Deck-Farbe und Pads mindestens 4,9 (Papier: Deck A 4,9, Deck B 4,9). Gering ist nur der Hell-Text auf dem Hi-Hat-Pad in Eis und Mono (5,9 bis 6,2, genügt). Camelot-Chips behalten ihre Datenfarben in jedem Schema.
+
+Regeln für neue Schemata: eine Tintenfarbe, zwei Deck-Farben, die sich auf dem Display unterscheiden (Hell/Dunkel oder Farbton), Pad-Gruppen aus Deck-Farben plus Neutralem, Kontrast wie oben. Schemata nach Helligkeit sortieren (Hell, Mittel, Dunkel), nicht nach Name.
+
+### 10.5 Wellenform-Stil und Deck-Ansicht
+
+- **Stil** (gilt für Überblick, Deck-Welle, Zeitleiste): *Einfarbig* (Deckfarbe), *3 Bänder* (Bass, Mitten, Höhen als gestapelte Schichten in `w1`, `w2`, `w3` des Schemas) und *Hitze* (je lauter, desto heller, Deckfarbe zu Tinte). Der Stil ändert nur die Füllung der Striche, nie die Geometrie.
+- **Deck-Ansicht:** *Scheibe* (Taktscheibe aus §5), *Welle* (laufende Welle mit Beat-Raster, Abspielstelle in der Mitte, Taktstriche oben und unten) oder *Beides* (Welle 90 dp über kleinerer Scheibe). Die Welle läuft aus derselben Takt-Phase wie die Scheibe: Versatz = Zeit × BPM/60 × 64 dp je Schlag, ein Takt = vier Schläge, die vier Schlagstriche des aktuellen Takts voll deckend.
+- Die Bibliothek-Miniaturen bleiben einfarbig (ink2), damit die Liste ruhig bleibt.
+
+### 10.6 Anordnung: Module auf einem 12 × 8 Raster
+
+Jede Seite (Tab) besteht aus **Modulen**. Ein Modul ist eine abgeschlossene Kachelgruppe, die sich an die Größe anpasst, die ihr das Raster gibt, nicht an die Fenstergröße (im Prototyp mit Container-Größen; in Compose mit `BoxWithConstraints`). Beispiel Scheibe: Durchmesser = `min(Modulhöhe − 235 dp, Modulbreite − 130 dp)`, mindestens 110 dp, höchstens 420 dp.
+
+**Module der Deck-Seite** (Prototyp, Mindestgröße in Feldern, Spalten × Zeilen):
+
+| Modul | Mindestens | Standardgröße |
+| --- | --- | --- |
+| Deck A, Deck B | 4 × 4 | 5 × 6 |
+| Mixer | 2 × 5 | 2 × 6 |
+| Überblick (zwei Wellen) | 3 × 1 | 12 × 2 |
+| Bibliothek (Liste mit A/B) | 3 × 3 | 4 × 6 |
+| Effekte (Kurzfassung) | 3 × 3 | 4 × 4 |
+| Pads (4 × 4) | 3 × 3 | 4 × 5 |
+
+**Voreinstellungen:** *Standard* (A, Mixer, B, Überblick), *Deck-Fokus* (Decks über die ganze Höhe, kein Überblick), *Bibliothek* (Liste links, Decks gestapelt, Mixer rechts), *Pads + Effekte* (kleine Decks, großer Überblick, Pads und Effekte rechts). Wer etwas ändert, landet in *Eigene*.
+
+**Bearbeiten** (nur Rechner, Taste „Anordnen“ in der Leiste über dem Raster): Das Raster wird sichtbar, die Inhalte treten zurück, jedes Modul zeigt Name, Größe, ein × und einen Griff rechts unten.
+- **Ziehen** an beliebiger Stelle verschiebt, gerastet auf Felder. **Griff** ändert die Größe, nie unter die Mindestgröße.
+- **Zusammenstoß:** das bewegte Modul behält seinen Platz, getroffene Module rutschen nach unten. Passt dadurch etwas nicht mehr ins Raster, wird die Bewegung nicht ausgeführt (kein Überlauf, keine Rollleiste).
+- **× blendet aus**, die Leiste bietet „+ Name“ zum Einblenden. Findet sich kein Platz, versucht die App kleinere Größe und Verdrängung, sonst Hinweis „Kein Platz: erst ein anderes Modul verkleinern oder ausblenden“.
+- Andere Module gleiten in 220 ms (easeOut) an ihren neuen Platz. „Zurücksetzen“ stellt *Standard* her.
+
+**Telefon:** keine freie Platzierung (zu klein). Stattdessen in „Aussehen › Anordnung“: Module ein- und ausblenden und mit ▲▼ die Reihenfolge ändern; die Seite zeigt sie untereinander.
+
+**Speicherung:** pro Gerät, sofort. `AppearancePrefs(look, scheme, wave, view, order: List<ModuleId>, layouts: Map<TabId, LayoutSpec>)`, mit `LayoutSpec(preset: String, modules: Map<ModuleId, Cell(x, y, w, h)>)`. Der Prototyp legt dasselbe unter `localStorage` ab. Aus dem Raster abgeleitet, nie aus Pixeln, damit es zwischen 1180 × 800 und 1440 × 900 und beim Drehen gleich bleibt.
+
+### 10.7 Seite „Aussehen“ ([Bild](screens/aussehen_1440.png))
+
+Erreichbar über das Zahnrad in der Leiste (Telefon: oben rechts, neben Play). Von oben nach unten: **Look** (drei Karten mit Live-Vorschau des Decks, die gewählte in `ink`), **Farbschema** (sechs Karten mit Farbstreifen) neben **Wellenform** (Stil und Deck-Ansicht, Vorschau), **Anordnung** (Module ein/aus, „Zurücksetzen“, „Anordnen …“, springt zu den Decks im Bearbeiten-Modus). Änderungen gelten sofort.
+
+Bilder: [Looks und Schemata im Überblick](screens/schemata_1440.png), [Pult + Eis + 3 Bänder](screens/decks_pult_eis_1440.png), [Bühne + Amber](screens/decks_buehne_amber_1440.png), [Papier, Scheibe und Welle, Hitze](screens/decks_papier_1440.png), [Bearbeiten](screens/anordnen_1440.png), [Bibliothek-Anordnung](screens/layout_bibliothek_1440.png), [Pads-Anordnung](screens/layout_pads_1440.png), [Telefon](screens/telefon_looks_390.png).
+
+### 10.8 Umsetzung (Vorschlag in Reihenfolge, für den Code-Thread)
+
+1. `AutoDjColors` gibt es sechsmal (Werte aus `AutoDjTokens.kt`); `LocalAutoDjColors` wechselt per `AppearancePrefs`. Das bestehende `Ds.night` fällt weg (Schema „Papier“ ersetzt das helle Thema).
+2. `AutoDjLook` (Kerbe, Radien, Abstände, Bedienhöhe, Display-Schrift, Standardansicht) als `CompositionLocal`. Komponenten lesen daraus statt fester `dp`-Werte (Kerbe/Radius, `AutoDjSpace`, Höhen).
+3. Seite „Aussehen“ plus `AppearancePrefs` (DataStore).
+4. `WaveformView(style, scrolling)` mit den drei Stilen; Deck bekommt die Ansicht Scheibe/Welle/Beides.
+5. Modul-Raster für die Deck-Seite: `ModuleGrid(layout, editing)` als eigenes `Layout` (12 × 8), Module als `BoxWithConstraints`. Danach dasselbe für Bibliothek, Effekte und Pads (dann Module wie „Pad-Raster“, „Sequencer“ einzeln).
+6. Bearbeiten-Modus mit `detectDragGestures` (Ziehen, Größe) und der Zusammenstoß-Logik aus dem Prototyp (`resolve()`).
+
+### 10.9 Annahmen und offen
+
+- Im Prototyp ist nur die **Deck-Seite** frei anordenbar; die anderen Tabs sind fest. Die Module dafür wären: Bibliothek (Liste, Tonartenrad, „Songs hinzufügen“), Auto-Mix (Zeitleiste, Liste, Übergänge, Export), Effekte (je Effekt eine Kachel), Pads (Pad-Raster, Sequencer), Granular (Wolke, Schritte, Hüllkurve, Regler).
+- Looks sind bewusst nur drei. Weitere (etwa ein heller Apple-artiger) sind über `AutoDjLook` später billig; sie sollen sich in Form und Aufbau unterscheiden, nicht nur in der Farbe.
+- Pult und Bühne wurden nur auf Desktop-Auflösungen und 390 dp Breite angeschaut. Nichts davon lief auf echter Hardware.
+- Die Beschreibungen der Referenz-Software stammen aus Suchergebnissen, die teils Foren und Werbetexte sind; sie belegen die Richtung, nicht die Details.
