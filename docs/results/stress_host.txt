@@ -1,0 +1,84 @@
+  seed 1 ok (4000 callbacks)
+  seed 2 ok (4000 callbacks)
+  seed 3 ok (4000 callbacks)
+== fuzz phase: 300 seeds x 4000 callbacks (deterministic, single thread): 0 failing ==
+  [free ]     0 s audio, rss 16080 kB, active grains 8
+  [free ]  7319 s audio, rss 43508 kB, active grains 11
+
+== free phase: 600 s of audio in 30.0 s wall (20x), 1398858 callbacks ==
+  control thread : 69687 param writes, 17388 notes, 9195 source swaps (0 rejected/queue full), 5715 preset round trips, 3511 graph swaps, 7033 transport, 124 resets
+  callback time  : mean 20.6 us, p99 (sampled) 159.3 us, max 4859.4 us; virtual xruns 2 (callback > its buffer duration)
+  memory         : rss after warm-up 43508 kB, peak 43508 kB, end 49868 kB
+  ownership      : 16 buffers / 1 graphs still held (limit 16 / 2); active grains at end 1
+  rt violations  : 0
+  [paced]     0 s audio, rss 22080 kB, active grains 8
+  [paced]    10 s audio, rss 47352 kB, active grains 0
+  [paced]    20 s audio, rss 46124 kB, active grains 3
+  [paced]    30 s audio, rss 48992 kB, active grains 0
+  [paced]    40 s audio, rss 49828 kB, active grains 0
+  [paced]    50 s audio, rss 48788 kB, active grains 0
+  [paced]    60 s audio, rss 47932 kB, active grains 0
+  [paced]    70 s audio, rss 50268 kB, active grains 12
+  [paced]    80 s audio, rss 51540 kB, active grains 0
+  [paced]    90 s audio, rss 53220 kB, active grains 0
+  [paced]   100 s audio, rss 45456 kB, active grains 2
+  [paced]   110 s audio, rss 55684 kB, active grains 5
+  [paced]   120 s audio, rss 52348 kB, active grains 2
+  [paced]   130 s audio, rss 47148 kB, active grains 3
+  [paced]   140 s audio, rss 43236 kB, active grains 19
+  [paced]   150 s audio, rss 48584 kB, active grains 2
+  [paced]   160 s audio, rss 47848 kB, active grains 31
+  [paced]   170 s audio, rss 47824 kB, active grains 9
+  [paced]   180 s audio, rss 53816 kB, active grains 4
+  [paced]   190 s audio, rss 44568 kB, active grains 51
+  [paced]   200 s audio, rss 52504 kB, active grains 1
+  [paced]   210 s audio, rss 53008 kB, active grains 3
+  [paced]   220 s audio, rss 50860 kB, active grains 0
+  [paced]   230 s audio, rss 52052 kB, active grains 2
+  [paced]   240 s audio, rss 54184 kB, active grains 1
+  [paced]   250 s audio, rss 48764 kB, active grains 7
+  [paced]   260 s audio, rss 50920 kB, active grains 3
+  [paced]   270 s audio, rss 49432 kB, active grains 0
+  [paced]   280 s audio, rss 46432 kB, active grains 2
+  [paced]   290 s audio, rss 46836 kB, active grains 0
+  [paced]   300 s audio, rss 47104 kB, active grains 1
+  [paced]   310 s audio, rss 52368 kB, active grains 10
+  [paced]   320 s audio, rss 44900 kB, active grains 3
+  [paced]   330 s audio, rss 53616 kB, active grains 2
+  [paced]   340 s audio, rss 51036 kB, active grains 4
+  [paced]   350 s audio, rss 52884 kB, active grains 2
+  [paced]   360 s audio, rss 54016 kB, active grains 12
+  [paced]   370 s audio, rss 49432 kB, active grains 6
+  [paced]   380 s audio, rss 48936 kB, active grains 0
+  [paced]   390 s audio, rss 49532 kB, active grains 1
+  [paced]   400 s audio, rss 54828 kB, active grains 1
+  [paced]   410 s audio, rss 41716 kB, active grains 0
+  [paced]   420 s audio, rss 41108 kB, active grains 3
+  [paced]   430 s audio, rss 48144 kB, active grains 9
+  [paced]   440 s audio, rss 54588 kB, active grains 7
+  [paced]   450 s audio, rss 52232 kB, active grains 15
+  [paced]   460 s audio, rss 43684 kB, active grains 24
+  [paced]   470 s audio, rss 46888 kB, active grains 1
+  [paced]   480 s audio, rss 50944 kB, active grains 5
+  [paced]   490 s audio, rss 47972 kB, active grains 4
+  [paced]   500 s audio, rss 43548 kB, active grains 0
+  [paced]   510 s audio, rss 45800 kB, active grains 1
+  [paced]   520 s audio, rss 50352 kB, active grains 3
+  [paced]   530 s audio, rss 51156 kB, active grains 2
+  [paced]   540 s audio, rss 46640 kB, active grains 0
+  [paced]   550 s audio, rss 44120 kB, active grains 25
+  [paced]   560 s audio, rss 43384 kB, active grains 2
+  [paced]   570 s audio, rss 53024 kB, active grains 5
+  [paced]   580 s audio, rss 45876 kB, active grains 4
+  [paced]   590 s audio, rss 53164 kB, active grains 5
+  [paced]   600 s audio, rss 53920 kB, active grains 4
+
+== paced phase: 600 s of audio in 600.0 s wall (1x), 150000 callbacks ==
+  control thread : 1377853 param writes, 344735 notes, 183585 source swaps (0 rejected/queue full), 114463 preset round trips, 68710 graph swaps, 137065 transport, 2901 resets
+  callback time  : mean 40.6 us, p99 (sampled) 104.8 us, max 7090.4 us; virtual xruns 8 (callback > its buffer duration)
+  scheduler wake-up lateness (OS, not engine): max 62190 us
+  memory         : rss after warm-up 47352 kB, peak 55684 kB, end 53920 kB
+  ownership      : 16 buffers / 1 graphs still held (limit 16 / 2); active grains at end 0
+  rt violations  : 0
+
+STRESS TEST PASSED

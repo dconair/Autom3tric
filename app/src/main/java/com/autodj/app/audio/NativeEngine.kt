@@ -1,0 +1,77 @@
+package com.autodj.app.audio
+
+/**
+ * Raw JNI surface of libautodj_native (native/platform/jni/NativeBridge.cpp). Everything here is a
+ * control-thread call; the audio callback itself never touches the JVM. Use [AudioEngine] instead of this object.
+ */
+internal object NativeEngine {
+    init {
+        NativeLibrary.load()
+    }
+
+    @JvmStatic external fun nativeCreate(sampleRate: Int, voices: Int): Long
+    @JvmStatic external fun nativeDestroy(handle: Long)
+    @JvmStatic external fun nativeStart(handle: Long, exclusive: Boolean, deviceId: Int): Int
+    @JvmStatic external fun nativeStop(handle: Long)
+    @JvmStatic external fun nativeDriverInfo(handle: Long): String
+
+    @JvmStatic external fun nativeParamSpecs(handle: Long): String
+    @JvmStatic external fun nativeSetParam(handle: Long, id: Int, value: Float)
+    @JvmStatic external fun nativeSetParamNormalized(handle: Long, id: Int, normalized: Float)
+    @JvmStatic external fun nativeGetParam(handle: Long, id: Int): Float
+    @JvmStatic external fun nativeExportPreset(handle: Long, name: String): String
+    @JvmStatic external fun nativeImportPreset(handle: Long, json: String): String
+
+    @JvmStatic external fun nativePlay(handle: Long)
+    @JvmStatic external fun nativeStopTransport(handle: Long)
+    @JvmStatic external fun nativeSeek(handle: Long, beats: Double)
+    @JvmStatic external fun nativeNoteOn(handle: Long, voice: Int, pitchSemitones: Float, velocity: Float)
+    @JvmStatic external fun nativeNoteOff(handle: Long, voice: Int)
+    @JvmStatic external fun nativeResetEngine(handle: Long)
+    @JvmStatic external fun nativeResetSteps(handle: Long, voice: Int)
+    @JvmStatic external fun nativeCollectGarbage(handle: Long): Int
+    @JvmStatic external fun nativeLoadDemoSource(handle: Long, slot: Int, kind: Int): Boolean
+    @JvmStatic external fun nativeSourcePeaks(handle: Long, slot: Int, columns: Int, out: FloatArray): Boolean
+    @JvmStatic external fun nativeSourceInfo(handle: Long, slot: Int): String
+
+    @JvmStatic external fun nativePollStatus(handle: Long, out: DoubleArray): Boolean
+    @JvmStatic external fun nativePollViz(handle: Long, out: FloatArray): Boolean
+
+    // ---- tracks: import (decoded PCM in, analysis out), waveform, granular source ----
+    @JvmStatic external fun nativeIngestBegin(handle: Long, srcRate: Int, channels: Int): Int
+    @JvmStatic external fun nativeIngestAppend(handle: Long, ticket: Int, data: FloatArray, count: Int): Boolean
+    @JvmStatic external fun nativeIngestFinish(handle: Long, ticket: Int, name: String, cachedJson: String, keep: Boolean, overviewColumns: Int): String
+    @JvmStatic external fun nativeIngestCancel(handle: Long, ticket: Int)
+    @JvmStatic external fun nativeIngestProgress(handle: Long, ticket: Int): Int
+    @JvmStatic external fun nativeTrackJson(handle: Long, trackId: Int, overviewColumns: Int): String
+    @JvmStatic external fun nativeTrackPeaks(handle: Long, trackId: Int, startSec: Double, endSec: Double, columns: Int, out: FloatArray): Boolean
+    @JvmStatic external fun nativeTrackRelease(handle: Long, trackId: Int)
+    @JvmStatic external fun nativeTrackToSource(handle: Long, trackId: Int, slot: Int): Boolean
+    @JvmStatic external fun nativeAddDemoTrack(handle: Long, kind: Int, keep: Boolean, overviewColumns: Int): String
+    @JvmStatic external fun nativeRenderOffline(handle: Long, frames: Int, out: FloatArray): Int
+
+    // ---- DJ: decks, automatic mix, offline export ----
+    @JvmStatic external fun nativeTrackStub(handle: Long, name: String, analysisJson: String): Int
+    @JvmStatic external fun nativeDeckLoad(handle: Long, deck: Int, trackId: Int, startSec: Double): Boolean
+    @JvmStatic external fun nativeDeckPlay(handle: Long, deck: Int, play: Boolean): Boolean
+    @JvmStatic external fun nativeDeckSeek(handle: Long, deck: Int, sec: Double): Boolean
+    @JvmStatic external fun nativePadTrigger(handle: Long, pad: Int, velocity: Float): Boolean
+    @JvmStatic external fun nativePadRow(handle: Long, pad: Int, mask: Int): Boolean
+    @JvmStatic external fun nativeGranularSteps(handle: Long, voice: Int, mask: Int, cells: Long): Boolean
+    @JvmStatic external fun nativeCaptureToSource(handle: Long, slot: Int, seconds: Double, name: String): Boolean
+    @JvmStatic external fun nativeOrderTracks(handle: Long, ids: IntArray, mode: Int): IntArray
+    @JvmStatic external fun nativePlanCreate(handle: Long, ids: IntArray, type: Int, lengthBeats: Int, seed: Int): String
+    @JvmStatic external fun nativePlanBind(handle: Long, planId: Int, item: Int, trackId: Int): Boolean
+    @JvmStatic external fun nativePlanBound(handle: Long, planId: Int, item: Int): Boolean
+    @JvmStatic external fun nativePlanUnbind(handle: Long, planId: Int, item: Int)
+    @JvmStatic external fun nativePlanStart(handle: Long, planId: Int): Boolean
+    @JvmStatic external fun nativePlanStop(handle: Long)
+    @JvmStatic external fun nativePlanRelease(handle: Long, planId: Int)
+    @JvmStatic external fun nativePollDj(handle: Long, out: DoubleArray): Boolean
+    @JvmStatic external fun nativeExportBegin(handle: Long, planId: Int, path: String, bits: Int): String
+    @JvmStatic external fun nativeExportStep(handle: Long, exportId: Int, frames: Int, out: DoubleArray): Boolean
+    @JvmStatic external fun nativeExportEnd(handle: Long, exportId: Int, discard: Boolean): String
+
+    @JvmStatic external fun nativeRunBenchmark(quick: Boolean): String
+    @JvmStatic external fun nativeBenchmarkProgress(): Int
+}

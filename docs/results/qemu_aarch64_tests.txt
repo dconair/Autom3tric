@@ -1,0 +1,18 @@
+=== test_core (aarch64 NEON under qemu-aarch64 user mode) ===
+[==========] Running 37 tests from 11 test suites.
+[==========] 37 tests from 11 test suites ran. (26348 ms total)
+[  PASSED  ] 37 tests.
+=== test_granular (aarch64 NEON under qemu-aarch64 user mode) ===
+[==========] Running 75 tests from 10 test suites.
+[ info ] backend neon: worst |SIMD - model| 0.000121 (largest bound 0.000981), worst |SIMD - scalar| 4.97e-05
+[==========] 75 tests from 10 test suites ran. (343975 ms total)
+[  PASSED  ] 75 tests.
+=== test_engine (aarch64 NEON under qemu-aarch64 user mode) ===
+[==========] Running 15 tests from 3 test suites.
+[ info ] callback 64: worst 100 ms RMS deviation 0.0571, total RMS 0.13166 vs 0.13077
+[ info ] callback 96: worst 100 ms RMS deviation 0.0499, total RMS 0.13139 vs 0.13077
+[ info ] callback 240: worst 100 ms RMS deviation 0.0424, total RMS 0.13125 vs 0.13077
+[ info ] callback 480: worst 100 ms RMS deviation 0.0190, total RMS 0.13093 vs 0.13077
+[ info ] callback 960: worst 100 ms RMS deviation 0.0000, total RMS 0.13077 vs 0.13077
+[==========] 15 tests from 3 test suites ran. (61909 ms total)
+[  PASSED  ] 15 tests.
