@@ -129,6 +129,7 @@ void GranularNode::setParams(const ParamStore& st, const BlockTime& t) noexcept 
     p.cellCount = st.getInt(id.cellCount);
     p.cellIndex = st.getInt(id.cellIndex);
     p.stepDiv = st.getInt(id.stepDiv);
+    p.seqOn = st.getBool(id.seqOn);
     // M8 hook: control-rate modulation (LFOs, envelope, matrix) is applied to `p` right here.
   }
 }
@@ -158,6 +159,12 @@ bool GranularNode::handleCommand(const Command& cmd, GarbageQueue& garbage) noex
       return true;
     case CmdType::StepReset:
       if (cmd.target < ids_.numVoices) voices_[cmd.target].stepResetPending = true;
+      return true;
+    case CmdType::GranularSteps:
+      if (cmd.target < ids_.numVoices) {
+        voices_[cmd.target].patMask = static_cast<std::uint16_t>(static_cast<std::uint32_t>(cmd.i0) & 0xFFFFu);
+        voices_[cmd.target].patCells = cmd.payload.u;
+      }
       return true;
     case CmdType::ResetEngine:
       clearGrains(garbage);
@@ -198,7 +205,12 @@ void GranularNode::stealVoiceGrains(int v) noexcept {
 
 void GranularNode::process(ProcessIO& io) noexcept {
   const int frames = io.frames;
-  const BlockTime& time = *io.time;
+  BlockTime time = *io.time;
+  // Steps and beat-synced grains sit on the beats of the music while a deck or a mix plays; otherwise on the free engine clock
+  if (io.clock != nullptr && io.clock->fromMusic && time.sampleRate > 0.0) {
+    time.clockBeat = io.clock->beat;
+    time.beatsPerSample = io.clock->bpm / (60.0 * time.sampleRate);
+  }
   GarbageQueue& garbage = *io.garbage;
   lastGarbage_ = &garbage;
   srcTable_.flushRetries(garbage);
@@ -232,6 +244,15 @@ void GranularNode::process(ProcessIO& io) noexcept {
     io.out[2 * i + 1] += mix_[2 * i + 1] * g;
   }
   publishViz(frames);
+}
+
+int GranularNode::patternStep(const Voice& vo, double beat) noexcept {
+  const long long k = static_cast<long long>(std::floor(beat / vo.stepBeats + 1e-9));
+  return static_cast<int>(((k % 16) + 16) % 16);
+}
+
+int GranularNode::patternCell(const Voice& vo, int step) noexcept {
+  return static_cast<int>((vo.patCells >> (4 * step)) & 15u) % vo.cellN;
 }
 
 int GranularNode::stepCell(const Voice& vo, double beat) noexcept {
@@ -306,11 +327,21 @@ void GranularNode::controlVoice(int v, int voiceLimit, int nGated, const Adaptiv
     if (!(vo.head >= 0.0 && vo.head <= 1.0)) vo.head = ls;  // belt and braces: never let a NaN scan head reach the grains
   }
   if (hold) {
+    vo.step = -1;
+    vo.rest = false;
     vo.cell = -1;
     vo.effPos = static_cast<float>(p.scanOn ? vo.head : static_cast<double>(p.position));
   } else {
     // Cells: the source is cut into cellN equal slices; `position` becomes the offset inside the slice.
-    vo.cell = stepping ? stepCell(vo, time.clockBeat) : std::clamp(p.cellIndex, 0, vo.cellN - 1);
+    vo.step = -1;
+    vo.rest = false;
+    if (stepping && p.seqOn) {
+      vo.step = patternStep(vo, time.clockBeat);
+      vo.rest = ((vo.patMask >> vo.step) & 1u) == 0;
+      vo.cell = patternCell(vo, vo.step);
+    } else {
+      vo.cell = stepping ? stepCell(vo, time.clockBeat) : std::clamp(p.cellIndex, 0, vo.cellN - 1);
+    }
     vo.effPos = (static_cast<float>(vo.cell) + std::clamp(p.position, 0.f, 1.f)) / static_cast<float>(vo.cellN);
   }
 
@@ -375,7 +406,15 @@ void GranularNode::spawnGrain(int v, Voice& vo, int offset, const SampleBuffer* 
 
   float effPos = vo.effPos;
   if (p.cellMode == static_cast<int>(CellMode::Step)) {  // the grain's own start beat decides its cell, not the block start
-    const int cell = stepCell(vo, time.clockBeat + static_cast<double>(offset) * time.beatsPerSample);
+    const double beat = time.clockBeat + static_cast<double>(offset) * time.beatsPerSample;
+    int cell;
+    if (p.seqOn) {
+      const int s = patternStep(vo, beat);
+      if (((vo.patMask >> s) & 1u) == 0) return;  // a rest in the pattern: this grain is not played
+      cell = patternCell(vo, s);
+    } else {
+      cell = stepCell(vo, beat);
+    }
     effPos = (static_cast<float>(cell) + std::clamp(p.position, 0.f, 1.f)) / static_cast<float>(vo.cellN);
   }
   double pos = static_cast<double>(effPos) * (frames - 1.0) + static_cast<double>(rSpray) * p.sprayMs * 0.001 * sr_;
@@ -516,7 +555,8 @@ void GranularNode::publishViz(int frames) noexcept {
   for (int v = 0; v < kVizMaxVoices; ++v) {
     g.playhead[v] = v < ids_.numVoices ? voices_[v].effPos : 0.f;
     g.voiceLevel[v] = v < ids_.numVoices ? voices_[v].targetGain : 0.f;
-    g.cell[v] = v < ids_.numVoices ? voices_[v].cell : -1;
+    g.cell[v] = v < ids_.numVoices ? (voices_[v].rest ? -1 : voices_[v].cell) : -1;
+    g.step[v] = v < ids_.numVoices ? voices_[v].step : -1;
   }
   const int count = gp.activeCount();
   const int stride = std::max(1, (count + kVizMaxGrains - 1) / kVizMaxGrains);

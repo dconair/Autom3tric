@@ -50,7 +50,7 @@ private enum class Tab(val label: String, val glyph: String) {
 }
 
 @Composable
-fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits: Int) -> Unit = {}) {
+fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onPickGranularFiles: () -> Unit = {}, onExport: (bits: Int) -> Unit = {}) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -87,7 +87,7 @@ fun AutoDjApp(vm: AutoDjViewModel, onPickFiles: () -> Unit = {}, onExport: (bits
                 })
                 Tab.Pads -> PadsScreen(vm.dj)
                 Tab.Mix -> MixScreen(vm.dj, onGoToLibrary = { tab = Tab.Library.ordinal }, onExport = onExport)
-                Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost() })
+                Tab.Granular -> InstrumentScreen(remember(vm) { vm.asInstrumentHost(onPickGranularFiles) })
                 Tab.Debug -> DeveloperTools(vm)
             }
         }

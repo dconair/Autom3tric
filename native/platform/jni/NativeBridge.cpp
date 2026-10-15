@@ -27,6 +27,7 @@
 #include "autodj/core/RtGuard.h"
 #include "autodj/engine/Engine.h"
 #include "autodj/engine/MixExport.h"
+#include "autodj/engine/Showcase.h"
 
 using autodj::Engine;
 using autodj::EngineConfig;
@@ -183,17 +184,11 @@ JFN(void, nativeResetEngine)(JNIEnv*, jclass, jlong h) { H(h)->engine->resetEngi
 JFN(void, nativeResetSteps)(JNIEnv*, jclass, jlong h, jint voice) { H(h)->engine->resetSteps(voice); }
 JFN(jint, nativeCollectGarbage)(JNIEnv*, jclass, jlong h) { return static_cast<jint>(H(h)->engine->collectGarbage()); }
 
-/// Built-in synthetic sources until the decoder arrives in milestone 3: 0 chord pad, 1 drum loop, 2 noise, 3 sine.
+/// The four built-in sources of the instrument (see Showcase.h): 0 pad, 1 drums, 2 pluck, 3 bass.
 JFN(jboolean, nativeLoadDemoSource)(JNIEnv*, jclass, jlong h, jint slot, jint kind) {
   Engine& e = *H(h)->engine;
   const int sr = e.sampleRate();
-  std::shared_ptr<const autodj::SampleBuffer> b;
-  switch (kind) {
-    case 0: b = autodj::demo::chordPad(12.0, sr); break;
-    case 1: b = autodj::demo::drumLoop(120.0, 4, sr); break;
-    case 2: b = autodj::demo::noise(4.0, sr, 0.5f); break;
-    default: b = autodj::demo::sine(220.0, 6.0, sr, 0.5f, 220.7); break;
-  }
+  std::shared_ptr<const autodj::SampleBuffer> b = autodj::showcase::make(kind, sr);
   return e.setSource(slot, std::move(b)) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -231,11 +226,11 @@ JFN(jboolean, nativePollStatus)(JNIEnv* env, jclass, jlong h, jdoubleArray out) 
   return JNI_TRUE;
 }
 
-/// out layout: [count, voices, playhead x4, level x4, cell x4, then count x (pos, size, pan, age, rate, voice)].
+/// out layout: [count, voices, playhead x4, level x4, cell x4, step x4, then count x (pos, size, pan, age, rate, voice)].
 JFN(jboolean, nativePollViz)(JNIEnv* env, jclass, jlong h, jfloatArray out) {
   static thread_local autodj::GrainViz z;
   if (!H(h)->engine->readGrainViz(z)) return JNI_FALSE;
-  constexpr int kHead = 2 + 3 * autodj::kVizMaxVoices;
+  constexpr int kHead = 2 + 4 * autodj::kVizMaxVoices;
   float buf[kHead + 6 * autodj::kVizMaxGrains];
   buf[0] = static_cast<float>(z.count);
   buf[1] = static_cast<float>(z.voices);
@@ -243,6 +238,7 @@ JFN(jboolean, nativePollViz)(JNIEnv* env, jclass, jlong h, jfloatArray out) {
     buf[2 + i] = z.playhead[i];
     buf[2 + autodj::kVizMaxVoices + i] = z.voiceLevel[i];
     buf[2 + 2 * autodj::kVizMaxVoices + i] = static_cast<float>(z.cell[i]);
+    buf[2 + 3 * autodj::kVizMaxVoices + i] = static_cast<float>(z.step[i]);
   }
   for (int i = 0; i < z.count; ++i) {
     const auto& g = z.grains[i];
@@ -470,6 +466,10 @@ JFN(jboolean, nativePadTrigger)(JNIEnv*, jclass, jlong h, jint pad, jfloat veloc
 }
 JFN(jboolean, nativePadRow)(JNIEnv*, jclass, jlong h, jint pad, jint mask) {
   return H(h)->engine->padSetRow(pad, static_cast<unsigned>(mask)) ? JNI_TRUE : JNI_FALSE;
+}
+
+JFN(jboolean, nativeGranularSteps)(JNIEnv*, jclass, jlong h, jint voice, jint mask, jlong cells) {
+  return H(h)->engine->granularSetSteps(voice, static_cast<unsigned>(mask), static_cast<std::uint64_t>(cells)) ? JNI_TRUE : JNI_FALSE;
 }
 
 /// The last `seconds` of the output become granular source `slot` ("freeze"). False while nothing has been rendered yet.

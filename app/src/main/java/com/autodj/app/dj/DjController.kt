@@ -60,6 +60,10 @@ class DjController(
     var snapshot by mutableStateOf(DjSnapshot.EMPTY)
         private set
 
+    /** True while a deck with a known tempo or the auto mix plays: tempo-synced parts of the app then run on the beats of that music. */
+    val isMusicPlaying: Boolean
+        get() = snapshot.deck.any { it.playing && it.bpm > 0.0 } || (snapshot.plan.active && !snapshot.plan.finished)
+
     /** Called ~30 times a second from the UI loop of the host. */
     fun poll() {
         engine.pollDj()?.let {
@@ -182,6 +186,63 @@ class DjController(
             }
         }
     }
+
+    /** What the "load a file into the instrument" flow is doing right now, in words for the screen; null when it is idle. */
+    var granularLoadStatus by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Loads audio files straight into the instrument: each file is added to the library if it is new, analysed (this is also what
+     * puts it in the Bibliothek), decoded again and handed to a free granular source slot. [onDone] gets the slot of the last file
+     * that worked, or null with an error text in words for the user. Runs in the background; [granularLoadStatus] tells what happens.
+     */
+    fun loadFilesIntoGranular(sources: List<String>, onDone: (slot: Int?, error: String?) -> Unit) {
+        if (sources.isEmpty()) return
+        if (granularLoadStatus != null) {
+            onDone(null, "Es wird schon eine Datei geladen. Einen Moment bitte.")
+            return
+        }
+        granularLoadStatus = "Lese ${decoder.displayName(sources.first())} …"
+        scope.launch(io) {
+            var slot: Int? = null
+            var error: String? = null
+            for (src in sources.take(MAX_GRANULAR_SLOTS)) {
+                val name = decoder.displayName(src)
+                withContext(ui) {
+                    granularLoadStatus = "Lese $name …"
+                    val old = tracks.firstOrNull { it.source == src }
+                    if (old != null && old.status == TrackStatus.Failed) remove(old.id)
+                    importSources(listOf(src))
+                }
+                var item = bySource(src)
+                var waited = 0
+                while (item != null && item.status != TrackStatus.Ready && item.status != TrackStatus.Failed && waited < 20 * 60 * 10) {
+                    val pct = if (item.progress >= 0f) " ${(item.progress * 100).toInt()} %" else ""
+                    val what = if (item.status == TrackStatus.Analysing) "Analysiere" else "Lese"
+                    withContext(ui) { granularLoadStatus = "$what $name …$pct" }
+                    delay(100)
+                    waited++
+                    item = bySource(src)
+                }
+                if (item == null || item.status != TrackStatus.Ready) {
+                    error = "„$name“ konnte nicht gelesen werden${item?.error?.let { ": $it" } ?: ""}. Probiere MP3, WAV, FLAC, AAC/M4A oder OGG."
+                    continue
+                }
+                withContext(ui) { granularLoadStatus = "Lade $name in das Plugin …" }
+                val loaded = kotlinx.coroutines.suspendCancellableCoroutine<Pair<Int?, String?>> { cont ->
+                    scope.launch(ui) { sendToGranular(item) { sl, err -> if (cont.isActive) cont.resumeWith(Result.success(sl to err)) } }
+                }
+                if (loaded.first != null) slot = loaded.first else error = loaded.second
+            }
+            withContext(ui) {
+                granularLoadStatus = null
+                if (slot != null) onDone(slot, null) else onDone(null, error ?: "Es wurde nichts geladen.")
+            }
+        }
+    }
+
+    /** A library row by its source, from the thread-safe copy (any thread). */
+    private fun bySource(src: String): TrackItem? = byId.values.firstOrNull { it.source == src }
 
     private var captureCount = 0
 

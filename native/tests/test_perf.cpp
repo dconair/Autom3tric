@@ -10,6 +10,7 @@
 
 #include "autodj/core/DemoSources.h"
 #include "autodj/engine/Engine.h"
+#include "autodj/engine/Showcase.h"
 #include "autodj/perf/MasterFx.h"
 #include "autodj/perf/PadNode.h"
 #include "test_util.h"
@@ -271,6 +272,7 @@ struct PadRig {
     st = std::make_unique<ParamStore>(reg);
     pads = std::make_unique<PadNode>(ids);
     pads->prepare({static_cast<double>(kSr), kChunk});
+    st->set(ids.padVolume, 0.9f);  // the thresholds below were set for this level; the product default is lower
     for (int p = 0; p < kPads; ++p) row(p, 0);
   }
   void row(int pad, unsigned mask) {
@@ -450,6 +452,7 @@ TEST(PerfEngine, PadsFollowTheFreeRunningClockAndReportTheirStep) {
   for (int p = 0; p < kPads; ++p) e.padSetRow(p, p == 0 ? 0x1111u : 0u);
   e.params().set(e.ids().bpm, 128.f);
   e.params().set(e.ids().perf.padSeqOn, 1.f);
+  e.params().set(e.ids().perf.padVolume, 0.9f);
   e.params().set(e.ids().masterGain, 0.8f);
   std::set<int> steps;
   std::uint64_t viol = 0;
@@ -482,6 +485,7 @@ TEST(PerfEngine, PadsSitOnTheBeatsOfTheMixPlanAndFollowItsTempo) {
   ASSERT_TRUE(plan);
   for (int p = 0; p < kPads; ++p) e.padSetRow(p, p == 0 ? 0x1111u : 0u);
   e.params().set(e.ids().perf.padSeqOn, 1.f);
+  e.params().set(e.ids().perf.padVolume, 0.9f);
   e.djNode().setDebugAudibleMask(0);  // the decks keep running but stay silent: only the pads are heard
   ASSERT_TRUE(e.planStart(plan));
   const std::vector<float> io = renderEngine(e, 8.0);
@@ -565,4 +569,43 @@ TEST(PerfEngine, CaptureCopiesTheLastSecondsOfTheOutputBitExactly) {
   EXPECT_EQ(0, std::memcmp(cap->data(), all.data() + from2, static_cast<std::size_t>(8 * kSr) * 2 * sizeof(float)));
   // it can be handed to the granular engine as a source
   EXPECT_TRUE(e.setSource(5, cap));
+}
+
+// ---- the instrument's four start sounds -----------------------------------------------------------------------------
+
+
+TEST(Showcase, TheFourStartSoundsAreCleanLevelledAndLoopSeamlessly) {
+  using namespace std::chrono;
+  for (int kind = 0; kind < showcase::kKinds; ++kind) {
+    const auto t0 = steady_clock::now();
+    const auto buf = showcase::make(kind, kSr);
+    const double ms = duration<double, std::milli>(steady_clock::now() - t0).count();
+    ASSERT_TRUE(buf) << showcase::name(kind);
+    EXPECT_LT(ms, 2500.0) << showcase::name(kind) << " is rendered at start-up and must not hold the window up";
+    EXPECT_EQ(buf->name(), showcase::name(kind));
+    const std::int64_t n = buf->frames();
+    EXPECT_NEAR(static_cast<double>(n) / kSr, showcase::kBars * 4 * 60.0 / showcase::kBpm, 0.01) << "four bars";
+    const float* d = buf->data();
+    double e = 0;
+    float peak = 0.f;
+    bool finite = true;
+    for (std::int64_t i = 0; i < 2 * n; ++i) {
+      finite = finite && std::isfinite(d[i]);
+      peak = std::max(peak, std::fabs(d[i]));
+      e += static_cast<double>(d[i]) * d[i];
+    }
+    EXPECT_TRUE(finite) << showcase::name(kind);
+    const double rmsDb = 10.0 * std::log10(e / (2.0 * static_cast<double>(n)));
+    EXPECT_GE(rmsDb, -19.0) << showcase::name(kind) << " is not quiet";
+    EXPECT_LE(rmsDb, -12.0) << showcase::name(kind) << " leaves room for the granular cloud";
+    EXPECT_LE(peak, 0.91f) << showcase::name(kind) << " never reaches the soft clipper";
+    // seamless loop: the step across the seam is no bigger than a step inside the sound
+    float worstInside = 0.f;
+    for (std::int64_t i = 1; i < n; ++i) worstInside = std::max({worstInside, std::fabs(d[2 * i] - d[2 * i - 2]), std::fabs(d[2 * i + 1] - d[2 * i - 1])});
+    const float seam = std::max(std::fabs(d[0] - d[2 * (n - 1)]), std::fabs(d[1] - d[2 * (n - 1) + 1]));
+    EXPECT_LE(seam, worstInside + 1e-6f) << showcase::name(kind) << " loops without a click";
+    EXPECT_LT(seam, 0.1f) << showcase::name(kind);
+  }
+  // four different sounds
+  EXPECT_NE(showcase::make(0, kSr)->data()[20000], showcase::make(2, kSr)->data()[20000]);
 }

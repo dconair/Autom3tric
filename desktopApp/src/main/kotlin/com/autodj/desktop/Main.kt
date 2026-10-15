@@ -1,11 +1,13 @@
 package com.autodj.desktop
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -13,7 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragData
+import androidx.compose.ui.draganddrop.dragData
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,9 +40,11 @@ import com.autodj.app.ui.dj.PadsScreen
 import kotlinx.coroutines.delay
 import java.awt.FileDialog
 import java.io.File
+import java.net.URI
 import java.util.Locale
 
 private val Tabs = listOf("Bibliothek", "Auto-Mix", "Decks", "Effekte", "Pads", "Granular")
+private const val GRANULAR_TAB = 5
 
 fun main() = application {
     val host = remember {
@@ -74,16 +83,51 @@ private fun FrameWindowScope.pickAudioFiles(): List<String> {
 
 private val AudioExtensions = setOf("mp3", "wav", "wave", "flac", "ogg", "oga", "m4a", "aac", "aif", "aiff", "caf", "mp4")
 
+/** Paths of the audio files in a drop (file:// URIs from the system), without folders and files we cannot play. */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun droppedAudioPaths(event: DragAndDropEvent): List<String> {
+    val data = event.dragData() as? DragData.FilesList ?: return emptyList()
+    return data.readFiles().mapNotNull { uri ->
+        runCatching { File(URI(uri)) }.getOrNull()?.takeIf { it.isFile && it.extension.lowercase() in AudioExtensions }?.absolutePath
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
-    var tab by remember { mutableIntStateOf(0) }
+    val tabState = remember { mutableIntStateOf(0) }
+    var tab by tabState
     LaunchedEffect(host) {
+        host.filePicker = { pickAudioFiles() }
         while (true) {
             delay(33)
             host.poll()
         }
     }
-    Column(Modifier.fillMaxSize().background(DjColors.bg)) {
+    val dropTarget = remember(host) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val paths = droppedAudioPaths(event)
+                if (paths.isEmpty()) {
+                    host.report("Das war keine Audiodatei. Ziehe MP3, WAV, FLAC, AAC/M4A oder OGG ins Fenster.")
+                    return false
+                }
+                if (tabState.intValue == GRANULAR_TAB) {
+                    host.loadPaths(paths)
+                } else {
+                    host.dj.importSources(paths)
+                    tabState.intValue = 0
+                }
+                return true
+            }
+        }
+    }
+    Column(
+        Modifier.fillMaxSize().background(DjColors.bg).dragAndDropTarget(
+            shouldStartDragAndDrop = { event -> event.dragData() is DragData.FilesList },
+            target = dropTarget,
+        ),
+    ) {
         DjTabBar(Tabs, tab, { tab = it }) { StatusChip(host) }
         Box(Modifier.weight(1f)) {
             when (tab) {
@@ -94,7 +138,7 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                         host.dj.sendToGranular(item) { slot, error ->
                             if (slot != null) {
                                 host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
-                                tab = 5
+                                tab = GRANULAR_TAB
                             } else {
                                 host.report(error ?: "Konnte den Song nicht laden")
                             }
@@ -117,7 +161,7 @@ private fun FrameWindowScope.DesktopApp(host: DesktopHost) {
                     host.dj.captureToGranular(seconds) { slot, error ->
                         if (slot != null) {
                             host.engine.spec("granular.v0.source")?.let { host.setParam(it, slot.toFloat()) }
-                            tab = 5
+                            tab = GRANULAR_TAB
                         } else {
                             host.report(error ?: "Konnte nichts einfangen")
                         }

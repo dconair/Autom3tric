@@ -3,6 +3,7 @@ package com.autodj.app.ui
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.autodj.app.audio.GrainVizItem
@@ -78,4 +79,12 @@ class FakeInstrumentHost(
     }
 
     override fun sourceInfoFor(slot: Int) = SourceInfo("chord-pad", 12.0, 48000)
+
+    /** What the audio thread would have received: voice, step mask, cells. */
+    val sentPatterns = mutableListOf<Triple<Int, Int, Long>>()
+    override val pattern = com.autodj.app.dj.GranularPattern { v, m, c -> sentPatterns += Triple(v, m, c) }
+    override val canLoadFiles = true
+    override val canDropFiles = true
+    override var loadStatus: String? by mutableStateOf(null)
+    override fun loadFiles() { log += "loadFiles" }
 }

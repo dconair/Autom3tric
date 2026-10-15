@@ -713,8 +713,10 @@ TrackAnalysis analyzeTrack(const float* lr, std::int64_t frames, int sampleRate,
   const std::vector<double> rms = barRms(lr, frames, sampleRate, a.firstBarSec, a.barSec, &loud);
   a.rmsDb = loud.rmsDb;
   a.peakDb = loud.peakDb;
-  double trim = std::clamp(-18.0 - loud.rmsDb, -9.0, 9.0);
-  trim = std::min(trim, -loud.peakDb + 1.0);
+  // target: -15 dB rms per track (a healthy club level; the master has headroom for two decks overlapping), but never more than
+  // -1 dBFS peak, so that the trim itself cannot push a track into the soft clipper
+  double trim = std::clamp(-15.0 - loud.rmsDb, -12.0, 9.0);
+  trim = std::min(trim, -loud.peakDb - 1.0);
   a.trimDb = loud.rmsDb > -100.0 ? trim : 0.0;
 
   const double p90 = std::max(1e-9, percentile(rms, 0.9));

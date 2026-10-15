@@ -83,6 +83,7 @@ class PerformanceTest {
 
     @Test fun aPadTapSoundsAndTheSequencerRunsThroughAllSteps() {
         val perf = PerformanceController(engine)
+        perf.set("pads.volume", 0.9f)  // the thresholds below were set for this level; the product default is lower
         perf.loadPattern(PadPatterns.last())  // empty
         render(0.2)
         perf.hit(0)

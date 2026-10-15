@@ -21,6 +21,7 @@ import com.autodj.app.dj.AndroidTrackDecoder
 import com.autodj.app.dj.DjController
 import com.autodj.app.dj.JsonLibraryStore
 import com.autodj.app.dj.TrackItem
+import com.autodj.app.ui.applyInstrumentDefaults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -85,7 +86,7 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
     private var resumeAfterBackground = false
 
     init {
-        // Built-in synthetic sources (a real decoder arrives with milestone 3): slot = kind.
+        // The four built-in sources of the instrument: slot = kind.
         for (kind in 0..3) engine.loadDemoSource(kind, kind)
         applyDemoSetup()
         viewModelScope.launch {
@@ -103,15 +104,8 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Voice 1 plays the chord pad as soon as the audio is started, so there is something to hear. */
-    private fun applyDemoSetup() {
-        set("granular.v0.source", 0f)
-        set("granular.v0.gate", 1f)
-        set("granular.v0.density", 40f)
-        set("granular.v0.size_ms", 160f)
-        set("granular.v0.spray_ms", 300f)
-        set("granular.v0.spread", 0.8f)
-    }
+    /** Voice 1 plays the pad as soon as the audio is started, so there is something to hear. */
+    private fun applyDemoSetup() = applyInstrumentDefaults(::set)
 
     private fun set(key: String, value: Float) {
         engine.spec(key)?.let { setParam(it, value) }
@@ -176,6 +170,22 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
             onDone(slot != null)
         }
     }
+
+    /** Loads audio files straight into the granular instrument (library + analysis + source slot) and selects the last one on the current voice. */
+    fun loadFilesIntoGranular(sources: List<String>) {
+        val voice = selectedVoice
+        dj.loadFilesIntoGranular(sources) { slot, error ->
+            if (slot != null) {
+                set("granular.v$voice.source", slot.toFloat())
+                message = null
+            } else {
+                message = error
+            }
+        }
+    }
+
+    /** The beat builder: the 16-step patterns of the four voices. */
+    val granularPattern = com.autodj.app.dj.GranularPattern { v, m, c -> engine.granularSteps(v, m, c) }
 
     /** Freezes the last [seconds] of the output into a granular source and selects it on the current voice. */
     fun captureToGranular(seconds: Double, onDone: (Boolean) -> Unit = {}) {

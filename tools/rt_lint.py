@@ -45,6 +45,7 @@ RT_FUNCTIONS = {
     "native/granular/src/GranularNode.cpp": [
         "reset", "smoothedId", "setParams", "handleCommand", "clearGrains", "stealVoiceGrains", "process",
         "controlVoice", "spawnGrain", "renderGrains", "mixVoices", "publishViz", "stats", "stepCell",
+        "patternStep", "patternCell",
     ],
     "native/engine/src/Engine.cpp": [
         "drainCommands", "applyCommand", "process", "processChunk", "publishStatus",

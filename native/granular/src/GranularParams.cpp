@@ -94,6 +94,7 @@ GranularParamIds registerGranularParams(ParamRegistry& reg, int numVoices) {
     ci.type = ParamType::Int;
     id.cellIndex = reg.add(std::move(ci));
     id.stepDiv = reg.add(makeEnum(p + "step_div", "Step length", g, {"2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16"}, 3));
+    id.seqOn = reg.add(makeBool(p + "seq_on", "Pattern", g, false));
   }
 
   ids.adaptive = reg.add(makeBool("granular.adaptive", "Adaptive quality", "Granular", true));

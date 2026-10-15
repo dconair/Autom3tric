@@ -41,7 +41,7 @@ PerfParamIds registerPerfParams(ParamRegistry& reg) {
   p.rollBeats = reg.add(choice("fx.roll.size", "Roll size", "Effects", {"1", "1/2", "1/4", "1/8"}, 1));
   p.stutterOn = reg.add(flag("fx.stutter.on", "Stutter", "Effects"));
   p.stutterBeats = reg.add(choice("fx.stutter.rate", "Stutter rate", "Effects", {"1/4", "1/8", "1/16"}, 1));
-  p.padVolume = reg.add(fl("pads.volume", "Pad volume", "Pads", 0.f, 1.5f, 0.9f, 12.f));
+  p.padVolume = reg.add(fl("pads.volume", "Pad volume", "Pads", 0.f, 1.5f, 0.5f, 12.f));
   p.padSeqOn = reg.add(flag("pads.seq_on", "Pad sequencer", "Pads"));
   p.padSwing = reg.add(fl("pads.swing", "Swing", "Pads", 0.f, 0.6f, 0.f));
   return p;

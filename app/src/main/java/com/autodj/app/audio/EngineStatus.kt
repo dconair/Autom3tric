@@ -48,11 +48,13 @@ class GrainVizSnapshot(
     /** Cell each voice currently reads from (Step / Keys mode), -1 in Hold mode. */
     val cell: IntArray,
     val grains: List<GrainVizItem>,
+    /** Step 0..15 of each voice's pattern, -1 when the voice runs no pattern. */
+    val step: IntArray = IntArray(MAX_VOICES) { -1 },
 ) {
     companion object {
         const val MAX_VOICES = 4
         const val MAX_GRAINS = 256
-        const val HEAD = 2 + 3 * MAX_VOICES
+        const val HEAD = 2 + 4 * MAX_VOICES
         const val SIZE = HEAD + 6 * MAX_GRAINS
         val EMPTY = GrainVizSnapshot(4, FloatArray(MAX_VOICES), FloatArray(MAX_VOICES), IntArray(MAX_VOICES) { -1 }, emptyList())
 
@@ -68,6 +70,7 @@ class GrainVizSnapshot(
                 voiceLevel = FloatArray(MAX_VOICES) { a[2 + MAX_VOICES + it] },
                 cell = IntArray(MAX_VOICES) { a[2 + 2 * MAX_VOICES + it].toInt() },
                 grains = items,
+                step = IntArray(MAX_VOICES) { a[2 + 3 * MAX_VOICES + it].toInt() },
             )
         }
     }

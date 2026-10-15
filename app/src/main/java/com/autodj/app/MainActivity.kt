@@ -15,7 +15,12 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     private val vm: AutoDjViewModel by viewModels()
 
+    /** True when the chooser was opened from the granular plugin: the files then go straight into the instrument. */
+    private var pickForGranular = false
+
     private val pickAudio = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        val forGranular = pickForGranular
+        pickForGranular = false
         if (uris.isEmpty()) return@registerForActivityResult
         for (uri in uris) {
             try {
@@ -25,7 +30,7 @@ class MainActivity : ComponentActivity() {
                 // the provider does not offer persistable grants; the song stays usable for this session
             }
         }
-        vm.dj.importSources(uris.map { it.toString() })
+        if (forGranular) vm.loadFilesIntoGranular(uris.map { it.toString() }) else vm.dj.importSources(uris.map { it.toString() })
     }
 
     private var exportBits = 16
@@ -57,7 +62,14 @@ class MainActivity : ComponentActivity() {
             AutoDjTheme {
                 AutoDjApp(
                     vm,
-                    onPickFiles = { pickAudio.launch(arrayOf("audio/*", "application/ogg")) },
+                    onPickFiles = {
+                        pickForGranular = false
+                        pickAudio.launch(arrayOf("audio/*", "application/ogg"))
+                    },
+                    onPickGranularFiles = {
+                        pickForGranular = true
+                        pickAudio.launch(arrayOf("audio/*", "application/ogg"))
+                    },
                     onExport = { bits ->
                         exportBits = bits
                         saveMix.launch("AutoDJ-Mix.wav")

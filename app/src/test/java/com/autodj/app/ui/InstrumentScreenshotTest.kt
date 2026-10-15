@@ -15,8 +15,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -112,6 +115,64 @@ class InstrumentScreenshotTest {
         assertEquals("envelope untouched by the stepper", 0f, host.value("granular.v0.env_shape"), 0f)
     }
 
+    @Test fun loadFileButtonOpensTheChooserAndShowsProgress() {
+        val host = FakeInstrumentHost()
+        show(host)
+        compose.onNodeWithText("+ Datei laden").performClick()
+        assertTrue(host.log.contains("loadFiles"))
+        host.loadStatus = "Analysiere song.mp3 … 40 %"
+        compose.waitForIdle()
+        compose.onNodeWithText("⟳ Analysiere song.mp3 … 40 %").assertExists()
+    }
+
+    @Test fun beatGridPresetsAndTapsProgramThePattern() {
+        val host = FakeInstrumentHost()
+        show(host)
+        compose.onNodeWithText("Beat bauen").assertDoesNotExist()
+        compose.onNodeWithText("step").performClick()
+        compose.onNodeWithText("Beat bauen").assertExists()
+        // starts as the plain walk through the cells: every step plays
+        assertEquals(0xFFFF, host.sentPatterns.last().second)
+        compose.onNodeWithText("Vierer").performClick()
+        assertEquals(0x1111, host.sentPatterns.last().second)
+        compose.onNodeWithText("Leer").performClick()
+        assertEquals(0, host.sentPatterns.last().second)
+        // a tap on the grid: step 1, cell 2 (eight rows of 22 dp below a 16 dp header, a 22 dp gutter on the left)
+        compose.onNode(hasContentDescription("Beat-Raster", substring = true)).performTouchInput {
+            val gutter = 22.dp.toPx()
+            val cw = (width - gutter) / 16f
+            click(Offset(gutter + 1.5f * cw, 16.dp.toPx() + 2.5f * 22.dp.toPx()))
+        }
+        val (voice, mask, cells) = host.sentPatterns.last()
+        assertEquals(0, voice)
+        assertEquals(1 shl 1, mask)
+        assertEquals(2L shl 4, cells)
+        // tapping the same dot again makes the step a rest
+        compose.onNode(hasContentDescription("Beat-Raster", substring = true)).performTouchInput {
+            val gutter = 22.dp.toPx()
+            val cw = (width - gutter) / 16f
+            click(Offset(gutter + 1.5f * cw, 16.dp.toPx() + 2.5f * 22.dp.toPx()))
+        }
+        assertEquals(0, host.sentPatterns.last().second)
+    }
+
+    @Test fun beatStartSetsTheVoiceUpForACrispRhythmAndPlays() {
+        val host = FakeInstrumentHost()
+        show(host)
+        compose.onNodeWithText("step").performClick()
+        compose.onNodeWithText("Beat-Start").performClick()
+        assertEquals("drums", 1f, host.value("granular.v0.source"), 0f)
+        assertEquals("16 cells", 1f, host.value("granular.v0.cell_count"), 0f)
+        assertEquals("beat sync", 1f, host.value("granular.v0.sync_mode"), 0f)
+        assertEquals(0f, host.value("granular.v0.position"), 0f)
+        assertEquals(0f, host.value("granular.v0.spray_ms"), 0f)
+        assertEquals("one grain per step: the length of a 1/8 step at 120 bpm", 250f, host.value("granular.v0.size_ms"), 1f)
+        assertEquals("playing", 1f, host.value("granular.v0.gate"), 0f)
+        assertTrue(host.sentPatterns.last().second != 0)
+        compose.onAllNodesWithText("■ Stopp")[0].performClick()
+        assertEquals(0f, host.value("granular.v0.gate"), 0f)
+    }
+
     @Test fun padsPlayTheirCellAndRelease() {
         val host = FakeInstrumentHost(mapOf("granular.v0.cell_mode" to 2f))
         show(host)
@@ -126,7 +187,7 @@ class InstrumentScreenshotTest {
         val chaos = compose.onNode(hasContentDescription("chaos", substring = true))
         chaos.performSemanticsAction(SemanticsActions.SetProgress) { it(0.6f) }
         assertEquals(0.6f, host.value("granular.chaos"), 1e-4f)
-        chaos.performTouchInput { doubleClick() }
+        chaos.performScrollTo().performTouchInput { doubleClick() }
         assertEquals(0f, host.value("granular.chaos"), 0f)
         // tune snaps to whole semitones
         compose.onNode(hasContentDescription("tune", substring = true)).performSemanticsAction(SemanticsActions.SetProgress) { it(0.7f) }

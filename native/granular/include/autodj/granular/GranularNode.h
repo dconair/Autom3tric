@@ -91,6 +91,7 @@ class GranularNode final : public Node {
     float volume = 0.8f, releaseMs = 120.f;
     bool autoGain = true;
     int cellMode = 0, cellCount = 0, cellIndex = 0, stepDiv = 3;
+    bool seqOn = false;
   };
 
   struct Voice {
@@ -119,6 +120,11 @@ class GranularNode final : public Node {
     double stepOrigin = 0.0;        // beat of the grid step that counts as step 0
     bool stepResetPending = true;
     int cellModePrev = 0;
+    // Pattern (Step mode with seq_on): 16 steps of one step length each, aligned to the bar lines of the master clock.
+    std::uint16_t patMask = 0xFFFFu;                       // which steps play
+    std::uint64_t patCells = 0xFEDCBA9876543210ull;        // 4 bits per step: the cell it plays (step 0 = lowest nibble)
+    int step = -1;                                         // pattern step at the start of this block, -1 when no pattern runs
+    bool rest = false;                                     // that step is silent
   };
 
   ParamId smoothedId(int voice, int k) const noexcept;
@@ -129,6 +135,9 @@ class GranularNode final : public Node {
   void renderGrains(int frames, const AdaptiveQuality::Limits& lim, GarbageQueue& garbage) noexcept;
   void mixVoices(float* out, int frames) noexcept;
   static int stepCell(const Voice& vo, double beat) noexcept;
+  /// Pattern step 0..15 that the beat falls into.
+  static int patternStep(const Voice& vo, double beat) noexcept;
+  static int patternCell(const Voice& vo, int step) noexcept;
   void publishViz(int frames) noexcept;
   void stealVoiceGrains(int v) noexcept;
   void clearGrains(GarbageQueue& garbage) noexcept;

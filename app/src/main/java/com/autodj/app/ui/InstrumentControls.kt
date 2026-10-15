@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -120,6 +121,7 @@ fun Knob(
     size: Dp = 64.dp,
     steps: Int = 0,
     onReset: (() -> Unit)? = null,
+    help: String? = null,
 ) {
     val currentValue by rememberUpdatedState(value)
     val currentOnChange by rememberUpdatedState(onValueChange)
@@ -133,10 +135,27 @@ fun Knob(
             true
         }
     }
-    Column(modifier.then(a11y), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.then(a11y).then(if (help != null) Modifier.helpText(help) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
             Modifier
                 .size(size)
+                .pointerInput(steps) {
+                    // mouse wheel / two-finger scroll turns the knob as well (desktop); each notch moves it a little
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent()
+                            if (e.type == PointerEventType.Scroll) {
+                                val dy = e.changes.fold(0f) { acc, c -> acc + c.scrollDelta.y }
+                                if (dy != 0f) {
+                                    val unit = if (steps > 0) 1f / steps else 0.02f
+                                    val next = quantizeKnob(currentValue - dy.coerceIn(-3f, 3f) * unit, steps)
+                                    if (next != currentValue) currentOnChange(next)
+                                    e.changes.forEach { it.consume() }
+                                }
+                            }
+                        }
+                    }
+                }
                 .pointerInput(steps) {
                     detectDragGestures(
                         onDragStart = { raw[0] = currentValue },
@@ -181,8 +200,9 @@ fun Segmented(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    help: String? = null,
 ) {
-    Row(modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape)) {
+    Row(modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape).then(if (help != null) Modifier.helpText(help) else Modifier)) {
         options.forEachIndexed { i, text ->
             val on = i == selected
             Box(
@@ -201,8 +221,11 @@ fun Segmented(
 
 /** "‹ 1/4 ›" - cycles through a list of values. */
 @Composable
-fun Stepper(text: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape), verticalAlignment = Alignment.CenterVertically) {
+fun Stepper(text: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier, help: String? = null) {
+    Row(
+        modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape).then(if (help != null) Modifier.helpText(help) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.heightIn(min = 40.dp).clickable(role = Role.Button, onClickLabel = "previous") { onPrev() }.padding(horizontal = 12.dp), Alignment.Center) {
             Text("‹", color = Palette.muted, fontSize = 18.sp)
         }
@@ -214,9 +237,10 @@ fun Stepper(text: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modi
 }
 
 @Composable
-fun OutlinedPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false) {
+fun OutlinedPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, help: String? = null) {
     Box(
         modifier
+            .then(if (help != null) Modifier.helpText(help) else Modifier)
             .heightIn(min = 40.dp)
             .clip(PillShape)
             .background(if (selected) Palette.bodySunken else Color.Transparent)
@@ -259,11 +283,11 @@ fun PadKey(label: String, active: Boolean, onPress: () -> Unit, onRelease: () ->
 
 /** Shape picker for the grain envelope: drawing of the current shape with ‹ › arrows. */
 @Composable
-fun EnvelopeSelector(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun EnvelopeSelector(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, help: String? = null) {
     val count = names.size.coerceAtLeast(1)
     val shape = RoundedCornerShape(14.dp)
     Row(
-        modifier.clip(shape).border(1.dp, Palette.outline, shape).padding(horizontal = 4.dp),
+        modifier.clip(shape).border(1.dp, Palette.outline, shape).then(if (help != null) Modifier.helpText(help) else Modifier).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = "previous shape") { onSelect((selected + count - 1) % count) }.padding(horizontal = 12.dp), Alignment.Center) {

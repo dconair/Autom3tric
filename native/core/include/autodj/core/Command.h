@@ -33,6 +33,7 @@ enum class CmdType : std::uint8_t {
   PlanStop,       // stop the running mix plan (decks it started are cleared)
   PadTrigger,     // target = pad 0..15, f0 = velocity (0 = full)
   PadRow,         // target = pad 0..15, i0 = 16-bit step mask of its sequencer row
+  GranularSteps,  // target = granular voice, i0 = 16-bit mask of the steps that play, payload.u = 16 cells of 4 bits (step 0 = lowest nibble)
 };
 
 struct Command {

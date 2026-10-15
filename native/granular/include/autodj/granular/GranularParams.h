@@ -54,6 +54,7 @@ struct VoiceParamIds {
   ParamId cellCount = kInvalidParam;    // Enum: 8 or 16 cells
   ParamId cellIndex = kInvalidParam;    // Int 0..15: cell played in Keys mode
   ParamId stepDiv = kInvalidParam;      // Enum: step length (stepDivisionBeats)
+  ParamId seqOn = kInvalidParam;        // Bool: in Step mode the 16-step pattern (GranularSteps) decides which cell plays, and when
 };
 
 struct GranularParamIds {

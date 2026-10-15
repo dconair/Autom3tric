@@ -298,6 +298,15 @@ bool Engine::padSetRow(int pad, unsigned mask) {
   return post(c);
 }
 
+bool Engine::granularSetSteps(int voice, unsigned mask, std::uint64_t cells) {
+  if (voice < 0 || voice >= cfg_.granularVoices) return false;
+  Command c = Command::make(CmdType::GranularSteps);
+  c.target = static_cast<std::uint8_t>(voice);
+  c.i0 = static_cast<std::int32_t>(mask & 0xFFFFu);
+  c.payload.u = cells;
+  return post(c);
+}
+
 std::shared_ptr<const SampleBuffer> Engine::captureOutput(double seconds, const std::string& name) const {
   const std::uint64_t written = capWritten_.load(std::memory_order_acquire);
   const std::size_t want = static_cast<std::size_t>(std::clamp(seconds, 0.1, kCaptureSeconds) * cfg_.sampleRate);

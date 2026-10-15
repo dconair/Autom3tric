@@ -105,6 +105,9 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     /** Sets the sequencer row of a pad: bit s of [mask] = step s (a 16th note) is on. */
     fun padRow(pad: Int, mask: Int): Boolean = handle != 0L && NativeEngine.nativePadRow(handle, pad, mask)
 
+    /** Sets the 16-step pattern of a granular voice: bit s of [mask] = step s plays; [cells] holds the cell of step s in bits 4s..4s+3. */
+    fun granularSteps(voice: Int, mask: Int, cells: Long): Boolean = handle != 0L && NativeEngine.nativeGranularSteps(handle, voice, mask, cells)
+
     /** Makes the last [seconds] of the output granular source [slot] (a "freeze" of what is playing). False while nothing has been rendered. */
     fun captureToSource(slot: Int, seconds: Double, name: String): Boolean = handle != 0L && NativeEngine.nativeCaptureToSource(handle, slot, seconds, name)
 

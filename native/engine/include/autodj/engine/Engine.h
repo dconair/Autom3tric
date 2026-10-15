@@ -128,6 +128,11 @@ class Engine {
   /// Sets the 16-bit step mask of a pad's sequencer row (bit s = step s).
   bool padSetRow(int pad, unsigned mask);
 
+  // ---- granular step pattern ------------------------------------------------------------------------------
+  /// Sets the 16-step pattern of a granular voice: bit s of `mask` = step s plays, `cells` holds the cell of step s in bits 4s..4s+3.
+  /// It is used while the voice is in Step mode with its "seq_on" parameter set.
+  bool granularSetSteps(int voice, unsigned mask, std::uint64_t cells);
+
   /// Copies the last `seconds` (at most kCaptureSeconds) of what the engine has sent to the speakers into a new buffer, so that it
   /// can be played back by the granular instrument ("freeze"). Control thread; null while nothing has been rendered yet.
   std::shared_ptr<const SampleBuffer> captureOutput(double seconds, const std::string& name) const;

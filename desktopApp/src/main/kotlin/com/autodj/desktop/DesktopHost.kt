@@ -16,6 +16,7 @@ import com.autodj.app.dj.DjController
 import com.autodj.app.dj.JsonLibraryStore
 import com.autodj.app.ui.DemoSourceNames
 import com.autodj.app.ui.InstrumentHost
+import com.autodj.app.ui.applyInstrumentDefaults
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,14 +58,9 @@ class DesktopHost(libraryFile: File = defaultLibraryFile(), decoder: DesktopTrac
     private var tick = 0
 
     init {
-        // Built-in synthetic sources until the importer arrives (milestone 3): slot = kind.
+        // The four built-in sources of the instrument: slot = kind.
         for (kind in 0..3) engine.loadDemoSource(kind, kind)
-        set("granular.v0.source", 0f)
-        set("granular.v0.gate", 1f)
-        set("granular.v0.density", 40f)
-        set("granular.v0.size_ms", 160f)
-        set("granular.v0.spray_ms", 300f)
-        set("granular.v0.spread", 0.8f)
+        applyInstrumentDefaults(::set)
     }
 
     private fun set(key: String, value: Float) {
@@ -118,6 +114,34 @@ class DesktopHost(libraryFile: File = defaultLibraryFile(), decoder: DesktopTrac
     }
 
     override val sourceNames: List<String> get() = DemoSourceNames + dj.granularSlots.map { it.name }
+
+    override val pattern = com.autodj.app.dj.GranularPattern { v, m, c -> engine.granularSteps(v, m, c) }
+
+    /** The window's file chooser (set by the window code): returns the chosen absolute paths, or nothing. */
+    var filePicker: (() -> List<String>)? = null
+
+    override val canLoadFiles: Boolean get() = filePicker != null
+    override val canDropFiles: Boolean get() = true
+    override val loadStatus: String? get() = dj.granularLoadStatus
+    override val followsMusic: Boolean get() = dj.isMusicPlaying
+
+    override fun loadFiles() {
+        loadPaths(filePicker?.invoke().orEmpty())
+    }
+
+    /** Loads audio files (chosen or dropped on the window) into the instrument and selects the last one on the current voice. */
+    fun loadPaths(paths: List<String>) {
+        if (paths.isEmpty()) return
+        val voice = selectedVoice
+        dj.loadFilesIntoGranular(paths) { slot, error ->
+            if (slot != null) {
+                set("granular.v$voice.source", slot.toFloat())
+                message = null
+            } else {
+                report(error ?: "Konnte die Datei nicht laden.")
+            }
+        }
+    }
 
     override fun close() {
         scope.cancel()

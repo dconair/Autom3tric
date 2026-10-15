@@ -45,7 +45,8 @@ struct GrainViz {
   std::int32_t voices = 0;
   float playhead[kVizMaxVoices] = {};  // effective grain-start position per voice, 0..1
   float voiceLevel[kVizMaxVoices] = {};
-  std::int32_t cell[kVizMaxVoices] = {-1, -1, -1, -1};  // cell the voice currently reads from (Step/Keys), -1 in Hold
+  std::int32_t cell[kVizMaxVoices] = {-1, -1, -1, -1};  // cell the voice currently reads from (Step/Keys), -1 in Hold or on a rest
+  std::int32_t step[kVizMaxVoices] = {-1, -1, -1, -1};  // step 0..15 of the voice's pattern, -1 when no pattern runs
   GrainVizItem grains[kVizMaxGrains];
 };
 

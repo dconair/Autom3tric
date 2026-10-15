@@ -9,6 +9,7 @@
 
 #include "autodj/core/DemoSources.h"
 #include "autodj/core/RtGuard.h"
+#include "autodj/engine/Tracks.h"
 #include "autodj/engine/Engine.h"
 #include "test_util.h"
 
@@ -211,6 +212,123 @@ TEST(Cells, VizReportsTheCurrentCell) {
   r.run(0.3);
   ASSERT_TRUE(r.e.readGrainViz(z));
   EXPECT_EQ(z.cell[0], -1);
+}
+
+namespace {
+std::uint64_t packCells(const int (&cells)[16]) {
+  std::uint64_t u = 0;
+  for (int i = 0; i < 16; ++i) u |= static_cast<std::uint64_t>(cells[i] & 15) << (4 * i);
+  return u;
+}
+}  // namespace
+
+TEST(Pattern, ProgrammedStepsPlayTheirCellAndRestsStaySilent) {
+  Rig r;
+  r.set("transport.bpm", 120.f);  // a 1/16 step is 6000 samples
+  r.v("cell_mode", static_cast<float>(CellMode::Step));
+  r.v("cell_count", 0);           // 8 cells
+  r.v("step_div", 5);             // 1/16
+  r.v("position", 0.25f);
+  r.v("seq_on", 1);
+  // steps 0, 4, 8, 12 play cells 1, 5, 2, 7; step 6 plays cell 3; everything else is a rest
+  const int cells[16] = {1, 0, 0, 0, 5, 0, 3, 0, 2, 0, 0, 0, 7, 0, 0, 0};
+  const unsigned mask = (1u << 0) | (1u << 4) | (1u << 6) | (1u << 8) | (1u << 12);
+  ASSERT_TRUE(r.e.granularSetSteps(0, mask, packCells(cells)));
+  r.run(4.0);  // two laps of the pattern
+  ASSERT_GT(r.spawns.size(), 50u);
+  std::vector<int> played(16, 0);
+  for (const Spawn& s : r.spawns) {
+    const double step = static_cast<double>(s.sample) / 6000.0;
+    const double frac = step - std::floor(step);
+    if (frac < 0.02 || frac > 0.98) continue;  // boundary samples may belong to either step
+    const int idx = static_cast<int>(std::floor(step)) % 16;
+    ASSERT_TRUE((mask >> idx) & 1u) << "a grain started on the rest at step " << idx;
+    EXPECT_EQ(cellOf(s.pos, r.frames(), 8), cells[idx]) << "step " << idx;
+    ++played[static_cast<std::size_t>(idx)];
+  }
+  for (int i : {0, 4, 6, 8, 12}) EXPECT_GT(played[static_cast<std::size_t>(i)], 5) << "step " << i << " is audible";
+}
+
+TEST(Pattern, SeqOffKeepsTheOldWalkAndAnEmptyPatternIsSilent) {
+  Rig r;
+  r.set("transport.bpm", 120.f);
+  r.v("cell_mode", static_cast<float>(CellMode::Step));
+  r.v("step_div", 5);
+  r.v("seq_on", 0);
+  ASSERT_TRUE(r.e.granularSetSteps(0, 0, 0));  // an empty pattern does nothing while seq_on is off
+  r.run(1.0);
+  EXPECT_GT(r.spawns.size(), 50u);
+  r.spawns.clear();
+  r.v("seq_on", 1);
+  r.run(0.2);  // let the grains of the walk finish
+  r.spawns.clear();
+  r.run(1.0);
+  EXPECT_EQ(r.spawns.size(), 0u) << "with every step a rest no grain is started";
+}
+
+TEST(Pattern, VizReportsTheStepAndRestsHaveNoCell) {
+  Rig r;
+  r.set("transport.bpm", 120.f);
+  r.v("cell_mode", static_cast<float>(CellMode::Step));
+  r.v("step_div", 5);
+  r.v("seq_on", 1);
+  const int cells[16] = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  ASSERT_TRUE(r.e.granularSetSteps(0, 1u, packCells(cells)));
+  GrainViz z;
+  bool sawPlay = false, sawRest = false;
+  for (int i = 0; i < 40; ++i) {
+    r.run(0.05);
+    ASSERT_TRUE(r.e.readGrainViz(z));
+    EXPECT_GE(z.step[0], 0);
+    EXPECT_LT(z.step[0], 16);
+    if (z.step[0] == 0) {
+      sawPlay = true;
+      EXPECT_EQ(z.cell[0], 2);
+    } else {
+      sawRest = true;
+      EXPECT_EQ(z.cell[0], -1);
+    }
+  }
+  EXPECT_TRUE(sawPlay && sawRest);
+  r.v("seq_on", 0);
+  r.run(0.3);
+  ASSERT_TRUE(r.e.readGrainViz(z));
+  EXPECT_EQ(z.step[0], -1);
+}
+
+TEST(Pattern, FollowsTheBeatsOfAPlayingDeckInsteadOfTheFreeClock) {
+  Rig r;
+  r.set("transport.bpm", 60.f);  // the free clock is slow; the song below runs at 120
+  r.v("cell_mode", static_cast<float>(CellMode::Step));
+  r.v("step_div", 3);  // 1/4: one step per beat
+  r.v("seq_on", 1);
+  const int cells[16] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
+  ASSERT_TRUE(r.e.granularSetSteps(0, 0xFFFFu, packCells(cells)));
+  demo::MusicSpec ms;
+  ms.bpm = 120.0;
+  ms.sampleRate = 48000;
+  auto t = std::make_shared<Track>();
+  t->audio = demo::musicTrack(ms);
+  auto& a = t->analysis;
+  a.durationSec = t->durationSec();
+  a.bpm = 120.0;
+  a.beatSec = 0.5;
+  a.barSec = 2.0;
+  a.gridConfidence = 0.9;
+  ASSERT_TRUE(r.e.deckLoad(0, t));
+  ASSERT_TRUE(r.e.deckPlay(0, true));
+  r.run(0.5);
+  r.spawns.clear();
+  r.run(4.0);
+  // at 120 bpm a beat is 0.5 s; at the free 60 bpm it would be a full second
+  std::vector<std::int64_t> firstOfCell(8, -1);
+  for (const Spawn& s : r.spawns) {
+    const int c = cellOf(s.pos, r.frames(), 8);
+    if (c >= 0 && c < 8 && firstOfCell[static_cast<std::size_t>(c)] < 0) firstOfCell[static_cast<std::size_t>(c)] = s.sample;
+  }
+  int changes = 0;
+  for (int c = 0; c < 8; ++c) changes += firstOfCell[static_cast<std::size_t>(c)] >= 0 ? 1 : 0;
+  EXPECT_GE(changes, 7) << "seven or eight different cells within four seconds means a step every half second";
 }
 
 TEST(Cells, SwitchingCellsWhilePlayingIsClickFree) {
