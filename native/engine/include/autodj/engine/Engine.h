@@ -110,6 +110,8 @@ class Engine {
   bool deckLoad(int deck, std::shared_ptr<const Track> track, double startSec = 0.0);
   bool deckPlay(int deck, bool play);
   bool deckSeek(int deck, double seconds);
+  /// Loops [startSec, startSec + lengthSec) on a deck (on = false ends the loop). Ignored while a mix plan runs.
+  bool deckLoop(int deck, bool on, double startSec = 0.0, double lengthSec = 0.0);
   /// Plans a mix of the given tracks in this order (unknown ids are skipped). Pure computation, nothing is started.
   std::shared_ptr<const dj::MixPlan> planMix(const std::vector<int>& trackIds, const dj::PlanOptions& options) const;
   /// Suggested play order for the given tracks: the result holds indices into `trackIds` (unknown ids are dropped).

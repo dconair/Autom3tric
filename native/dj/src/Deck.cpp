@@ -50,6 +50,8 @@ void Deck::setTrack(const Track* t, double startSec) noexcept {
   pausedAt_ = std::max(0.0, startSec) * sr_;
   fadeGain_ = 1.f;
   out_ = {};
+  if (loopLen_ > 0) ++loopGen_;
+  loopLen_ = 0;
 }
 
 void Deck::play(double fromSec) noexcept {
@@ -70,6 +72,7 @@ void Deck::seek(double sec) noexcept {
   if (!track_) return;
   const double f = std::clamp(sec * sr_, 0.0, static_cast<double>(track_->audio->frames()));
   ended_ = false;
+  if (loopLen_ > 0 && (f < static_cast<double>(loopStart_) || f >= static_cast<double>(loopStart_ + loopLen_))) clearLoop();
   if (stopRequested_) {  // "pause, then jump": rest at the new place once the fade-out is done
     restAt_ = f;
     return;
@@ -82,9 +85,35 @@ void Deck::seek(double sec) noexcept {
   }
 }
 
+void Deck::setLoop(double startSec, double lengthSec) noexcept {
+  if (!track_) return;
+  const std::int64_t frames = track_->audio->frames();
+  const std::int64_t start = std::clamp<std::int64_t>(std::llround(startSec * sr_), 0, frames);
+  const std::int64_t len = std::min<std::int64_t>(std::llround(lengthSec * sr_), frames - start);
+  if (len < static_cast<std::int64_t>(0.02 * sr_)) return;  // shorter than 20 ms is no loop
+  clearLoop();  // back to plain positions, then start over
+  loopStart_ = start;
+  loopLen_ = len;
+  ++loopGen_;
+}
+
+void Deck::clearLoop() noexcept {
+  if (loopLen_ == 0) return;
+  if (streaming_) {  // keep playing from where the loop currently reads
+    const double frac = cursorExact_ - static_cast<double>(cursor_);
+    cursor_ = mapLoop(cursor_);
+    cursorExact_ = static_cast<double>(cursor_) + frac;
+  }
+  loopLen_ = 0;
+  ++loopGen_;
+}
+
 double Deck::heardFrames() const noexcept {
   if (!streaming_) return wantStart_ >= 0.0 ? wantStart_ : pausedAt_;
-  return cursorExact_ - lag(lastRate_);
+  const double v = cursorExact_ - lag(lastRate_);
+  const double end = static_cast<double>(loopStart_ + loopLen_);
+  if (loopLen_ > 0 && v >= end) return static_cast<double>(loopStart_) + std::fmod(v - static_cast<double>(loopStart_), static_cast<double>(loopLen_));
+  return v;
 }
 
 void Deck::fillInput(std::int64_t from, int count) noexcept {
@@ -92,6 +121,18 @@ void Deck::fillInput(std::int64_t from, int count) noexcept {
   const float* src = track_->audio->data();
   float* l = impl_->inL;
   float* r = impl_->inR;
+  if (loopLen_ > 0) {
+    for (int i = 0; i < count; ++i) {
+      const std::int64_t idx = mapLoop(from + i);
+      if (idx < 0 || idx >= frames) {
+        l[i] = r[i] = 0.f;
+      } else {
+        l[i] = src[2 * idx];
+        r[i] = src[2 * idx + 1];
+      }
+    }
+    return;
+  }
   if (from >= 0 && from + count <= frames) {
     for (int i = 0; i < count; ++i) {
       l[i] = src[2 * (from + i)];

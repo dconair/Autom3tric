@@ -56,6 +56,13 @@ class Deck {
   void pause() noexcept;
   /// Moves the playhead; keeps playing if it was playing.
   void seek(double sec) noexcept;
+  /// Repeats [startSec, startSec + lengthSec) until clearLoop(): the stretcher is fed the loop over and over, so playback stays
+  /// seamless and the heard position wraps inside the loop. Replaces a running loop. A seek outside the loop ends it.
+  void setLoop(double startSec, double lengthSec) noexcept;
+  void clearLoop() noexcept;
+  bool looping() const noexcept { return loopLen_ > 0; }
+  /// Bumped whenever a loop starts or ends (sync uses it to forget its beat offset to the other deck).
+  std::uint32_t loopGeneration() const noexcept { return loopGen_; }
 
   bool playing() const noexcept { return streaming_ || wantStart_ >= 0.0; }
   /// Position (frames) a pending start will begin at, or -1.
@@ -77,6 +84,10 @@ class Deck {
   double lag(double rate) const noexcept { return inLat_ + rate * outLat_; }
   void startStream(double startFrames, double rate) noexcept;
   void fillInput(std::int64_t from, int count) noexcept;
+  /// Source frame the (virtual, ever growing) stream position `v` reads from: wraps inside the loop once it is past its end.
+  std::int64_t mapLoop(std::int64_t v) const noexcept {
+    return loopLen_ > 0 && v >= loopStart_ + loopLen_ ? loopStart_ + (v - loopStart_) % loopLen_ : v;
+  }
 
   std::unique_ptr<Impl> impl_;
   const Track* track_ = nullptr;
@@ -92,6 +103,8 @@ class Deck {
   std::int64_t cursor_ = 0;   // next source frame handed to the stretcher
   double cursorExact_ = 0.0;
   double lastRate_ = 1.0;
+  std::int64_t loopStart_ = 0, loopLen_ = 0;  // loopLen_ 0 = no loop (frames)
+  std::uint32_t loopGen_ = 0;
   float fadeGain_ = 1.f;
   double lastTranspose_ = 1.0;
   DeckOutput out_;

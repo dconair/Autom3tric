@@ -16,6 +16,12 @@ import kotlinx.coroutines.withContext
 class DeckUi {
     var item by mutableStateOf<TrackItem?>(null)
     var loading by mutableStateOf(false)
+
+    /** The eight pad places: the cues the analysis found for the loaded song, plus what was set by hand. */
+    var cues by mutableStateOf<List<HotCue?>>(List(CuePoints.SLOTS) { null })
+
+    /** The running loop, or null. */
+    var loop by mutableStateOf<LoopState?>(null)
     internal var loadedAt = 0L
 }
 
@@ -77,6 +83,8 @@ class DeckController(
                 if (ok) {
                     deck[d].item = item
                     deck[d].loadedAt = clock()
+                    deck[d].loop = null
+                    deck[d].cues = item.analysis?.let { CuePoints.slots(CuePoints.auto(it)) } ?: List(CuePoints.SLOTS) { null }
                 } else {
                     error = "„${item.name}“ konnte nicht geladen werden${err?.let { ": $it" } ?: ""}"
                 }
@@ -86,7 +94,13 @@ class DeckController(
 
     fun eject(d: Int) {
         engine.deckUnload(d)
+        clearDeck(d)
+    }
+
+    private fun clearDeck(d: Int) {
         deck[d].item = null
+        deck[d].loop = null
+        deck[d].cues = List(CuePoints.SLOTS) { null }
     }
 
     fun playPause(d: Int) {
@@ -103,14 +117,82 @@ class DeckController(
 
     fun seek(d: Int, sec: Double) {
         if (mixBusy) return
+        val l = deck[d].loop
+        if (l != null && (sec < l.startSec || sec >= l.endSec)) deck[d].loop = null  // the engine ends a loop that is left by a seek
         engine.deckSeek(d, sec)
+    }
+
+    private fun position(d: Int) = dj.snapshot.deck[d].posSec
+
+    /** A pad: jumps to its cue (and starts the deck if it stands still); an empty pad takes the current position, on the beat. */
+    fun cuePad(d: Int, slot: Int) {
+        val u = deck[d]
+        if (u.item?.analysis == null || mixBusy || slot !in 0 until CuePoints.SLOTS) return
+        val cue = u.cues[slot]
+        if (cue == null) {
+            setCue(d, slot)
+            return
+        }
+        seek(d, cue.sec)
+        if (!dj.snapshot.deck[d].playing) engine.deckPlay(d, true)
+    }
+
+    /** Puts a manual cue into the slot at the current position, snapped to the beat grid. */
+    fun setCue(d: Int, slot: Int) {
+        val u = deck[d]
+        val a = u.item?.analysis ?: return
+        val at = CuePoints.snapToBeat(a, position(d)).coerceIn(0.0, a.durationSec)
+        u.cues = u.cues.toMutableList().also { it[slot] = HotCue(at, "Cue ${slot + 1}", auto = false) }
+    }
+
+    fun clearCue(d: Int, slot: Int) {
+        deck[d].cues = deck[d].cues.toMutableList().also { it[slot] = null }
+    }
+
+    /** Back to what the analysis found. */
+    fun resetCues(d: Int) {
+        val a = deck[d].item?.analysis ?: return
+        deck[d].cues = CuePoints.slots(CuePoints.auto(a))
+    }
+
+    /** The loop buttons: a loop of [beats] beats starting on the beat before the playhead; the same button again ends it. */
+    fun loopBeats(d: Int, beats: Int) {
+        val u = deck[d]
+        val a = u.item?.analysis ?: return
+        if (mixBusy) return
+        if (u.loop?.beats == beats) {
+            loopOff(d)
+            return
+        }
+        startLoop(d, CuePoints.loopFor(a, position(d), beats) ?: return)
+    }
+
+    /** Loops four bars from the cue the playhead is in. */
+    fun cueLoop(d: Int) {
+        val u = deck[d]
+        val a = u.item?.analysis ?: return
+        if (mixBusy) return
+        if (u.loop?.beats == 0) {
+            loopOff(d)
+            return
+        }
+        startLoop(d, CuePoints.cueLoopFor(a, u.cues, position(d)) ?: return)
+    }
+
+    private fun startLoop(d: Int, l: LoopState) {
+        if (engine.deckLoop(d, true, l.startSec, l.lengthSec)) deck[d].loop = l
+    }
+
+    fun loopOff(d: Int) {
+        engine.deckLoop(d, false)
+        deck[d].loop = null
     }
 
     /** Called with every status poll: a deck that the engine emptied (the auto mix took the decks) loses its song in the UI. */
     fun onStatus(s: DjSnapshot) {
         for (d in 0..1) {
             val u = deck[d]
-            if (u.item != null && !u.loading && !s.deck[d].loaded && clock() - u.loadedAt > 1000) u.item = null
+            if (u.item != null && !u.loading && !s.deck[d].loaded && clock() - u.loadedAt > 1000) clearDeck(d)
         }
     }
 }

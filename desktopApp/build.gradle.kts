@@ -40,6 +40,7 @@ val syncSharedSources = tasks.register<Sync>("syncSharedSources") {
             "com/autodj/app/audio/EngineStatus.kt",
             "com/autodj/app/audio/NativeEngine.kt",
             "com/autodj/app/audio/ParamSpec.kt",
+            "com/autodj/app/dj/CuePoints.kt",
             "com/autodj/app/dj/DeckController.kt",
             "com/autodj/app/dj/DjController.kt",
             "com/autodj/app/dj/GranularPattern.kt",

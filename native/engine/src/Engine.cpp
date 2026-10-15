@@ -246,6 +246,16 @@ bool Engine::deckSeek(int deck, double seconds) {
   return post(c);
 }
 
+bool Engine::deckLoop(int deck, bool on, double startSec, double lengthSec) {
+  if (deck < 0 || deck > 1) return false;
+  Command c = Command::make(CmdType::DeckLoop);
+  c.target = static_cast<std::uint8_t>(deck);
+  c.i0 = on ? 1 : 0;
+  c.f0 = static_cast<float>(lengthSec);
+  c.payload.d = startSec;
+  return post(c);
+}
+
 std::shared_ptr<const dj::MixPlan> Engine::planMix(const std::vector<int>& trackIds, const dj::PlanOptions& options) const {
   std::vector<std::shared_ptr<const Track>> list;
   for (int id : trackIds) {

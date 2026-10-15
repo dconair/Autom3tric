@@ -98,6 +98,10 @@ class AudioEngine(val sampleRate: Int, voices: Int = 4) : AutoCloseable {
     fun deckPlay(deck: Int, play: Boolean): Boolean = handle != 0L && NativeEngine.nativeDeckPlay(handle, deck, play)
     fun deckSeek(deck: Int, sec: Double): Boolean = handle != 0L && NativeEngine.nativeDeckSeek(handle, deck, sec)
 
+    /** Loops [startSec, startSec + lengthSec) on the deck, or ends the loop. */
+    fun deckLoop(deck: Int, on: Boolean, startSec: Double = 0.0, lengthSec: Double = 0.0): Boolean =
+        handle != 0L && NativeEngine.nativeDeckLoop(handle, deck, on, startSec, lengthSec)
+
     // ---- performance: the effects are parameters "fx.*"; the drum pads are played and programmed with these ----
     /** Plays pad 0..15 once; [velocity] 0 = full. */
     fun padTrigger(pad: Int, velocity: Float = 0f): Boolean = handle != 0L && NativeEngine.nativePadTrigger(handle, pad, velocity)

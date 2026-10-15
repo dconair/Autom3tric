@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import com.autodj.app.audio.DeckSnapshot
 import com.autodj.app.dj.DeckController
 import com.autodj.app.dj.DjController
+import com.autodj.app.dj.CuePoints
+import com.autodj.app.dj.LoopState
 import com.autodj.app.dj.MixState
 import com.autodj.app.dj.TrackItem
 import com.autodj.app.design.AutoDjMotion
@@ -150,8 +153,8 @@ private fun DeckColumn(dj: DjController, d: Int, busy: Boolean, modifier: Modifi
             }
         }
         // waveform display
-        Display(Modifier.fillMaxWidth().then(if (wide) Modifier.weight(1f) else Modifier.height(150.dp)).riseIn(if (d == 0) 1 else 2)) {
-            DeckWaveform(item, st, deckLit(d, c), Modifier.fillMaxSize()) { sec -> decks.seek(d, sec) }
+        Display(Modifier.fillMaxWidth().then(if (wide) Modifier.weight(1f).heightIn(min = 96.dp) else Modifier.height(150.dp)).riseIn(if (d == 0) 1 else 2)) {
+            DeckWaveform(item, st, deckLit(d, c), Modifier.fillMaxSize(), u.cues.mapNotNull { it?.sec }, u.loop) { sec -> decks.seek(d, sec) }
             Row(Modifier.align(Alignment.TopEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SongPicker(dj, d, enabled = !busy)
                 if (item != null) Btn("Auswerfen", onClick = { decks.eject(d) }, small = true, enabled = !busy)
@@ -163,8 +166,12 @@ private fun DeckColumn(dj: DjController, d: Int, busy: Boolean, modifier: Modifi
                 }
             }
         }
+        // hotcues and loops, prepared by the analysis
+        Tile(Modifier.fillMaxWidth().riseIn(if (d == 0) 2 else 3), padding = 12.dp) {
+            CuesAndLoops(decks, d, item != null && a != null && !busy, wide)
+        }
         // controls
-        Tile(Modifier.fillMaxWidth().riseIn(if (d == 0) 2 else 3), padding = if (wide) 16.dp else 12.dp) {
+        Tile(Modifier.fillMaxWidth().riseIn(if (d == 0) 3 else 4), padding = if (wide) 16.dp else 12.dp) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Btn(
                     if (st.playing) "Pause" else "Play", onClick = { decks.playPause(d) }, primary = true, enabled = item != null && !busy,
@@ -199,6 +206,54 @@ private fun DeckColumn(dj: DjController, d: Int, busy: Boolean, modifier: Modifi
                     Txt("Level", style = AutoDjType.small, second = true)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Eight pads with the cues the analysis found (tap: jump; an empty pad takes the playhead), and the loop buttons. On a wide screen
+ * the pads carry their name and everything sits in two rows, so the waveform keeps its room; on a phone the names go under the pads.
+ */
+@Composable
+private fun CuesAndLoops(decks: DeckController, d: Int, enabled: Boolean, wide: Boolean) {
+    val u = decks.deck[d]
+    val a = u.item?.analysis
+    var erase by remember { mutableStateOf(false) }
+    val tempo = a != null && a.hasTempo
+    val pad = if (wide) 6.dp else 4.dp
+    val tools: @Composable () -> Unit = {
+        Btn("Löschen", onClick = { erase = !erase }, small = true, on = erase, enabled = enabled, description = "Hotcue löschen")
+        Btn(if (wide) "Neu" else "Neu finden", onClick = { decks.resetCues(d); erase = false }, small = true, enabled = enabled, description = "Hotcues aus der Analyse neu setzen")
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!wide) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Txt("Hotcues", style = AutoDjType.small, second = true, modifier = Modifier.weight(1f))
+                tools()
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(pad)) {
+            for (i in 0 until CuePoints.SLOTS) {
+                val cue = u.cues[i]
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Btn(
+                        if (cue == null) "+" else if (wide) cue.label else "${i + 1}",
+                        onClick = { if (erase && cue != null) decks.clearCue(d, i) else decks.cuePad(d, i) },
+                        modifier = Modifier.fillMaxWidth().height(if (wide) 36.dp else 44.dp),
+                        on = cue != null && !erase, danger = erase && cue != null, enabled = enabled, small = wide,
+                        description = if (cue == null) "Hotcue ${i + 1} an der Abspielposition setzen" else "Hotcue ${i + 1} ${cue.label}, ${formatTime(cue.sec)}",
+                    )
+                    if (!wide) Txt(cue?.label ?: " ", style = AutoDjType.small, second = true, maxLines = 1)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(pad)) {
+            if (!wide) Txt("Loop", style = AutoDjType.small, second = true, modifier = Modifier.width(36.dp))
+            for (b in CuePoints.LoopBeats) {
+                Btn("$b", onClick = { decks.loopBeats(d, b) }, small = true, on = u.loop?.beats == b, enabled = enabled && tempo, modifier = Modifier.weight(1f), description = "Loop über $b Schläge")
+            }
+            Btn("4 Takte", onClick = { decks.cueLoop(d) }, small = true, on = u.loop != null && u.loop?.beats == 0, enabled = enabled && tempo, description = "Vier Takte ab dem letzten Cue wiederholen, nochmal tippen beendet den Loop")
+            if (wide) tools()
         }
     }
 }
@@ -260,7 +315,7 @@ private fun SongPicker(dj: DjController, d: Int, enabled: Boolean) {
 }
 
 @Composable
-private fun DeckWaveform(item: TrackItem?, st: DeckSnapshot, lit: Color, modifier: Modifier, onSeek: (Double) -> Unit) {
+private fun DeckWaveform(item: TrackItem?, st: DeckSnapshot, lit: Color, modifier: Modifier, cues: List<Double>, loop: LoopState?, onSeek: (Double) -> Unit) {
     val a = item?.analysis
     var widthPx by remember { mutableStateOf(1f) }
     Box(
@@ -273,7 +328,7 @@ private fun DeckWaveform(item: TrackItem?, st: DeckSnapshot, lit: Color, modifie
                 if (a != null) detectDragGestures { change, _ -> change.consume(); onSeek((change.position.x / widthPx).coerceIn(0f, 1f) * a.durationSec) }
             },
     ) {
-        if (a != null && item != null) SongWave(item.overview, a, lit, Modifier.fillMaxSize(), playSec = st.posSec, revealKey = item.id)
+        if (a != null && item != null) SongWave(item.overview, a, lit, Modifier.fillMaxSize(), playSec = st.posSec, revealKey = item.id, cues = cues, loopFrom = loop?.startSec ?: 0.0, loopTo = loop?.endSec ?: 0.0)
     }
 }
 

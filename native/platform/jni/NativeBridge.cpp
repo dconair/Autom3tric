@@ -460,6 +460,9 @@ JFN(jboolean, nativeDeckPlay)(JNIEnv*, jclass, jlong h, jint deck, jboolean play
 JFN(jboolean, nativeDeckSeek)(JNIEnv*, jclass, jlong h, jint deck, jdouble sec) {
   return H(h)->engine->deckSeek(deck, sec) ? JNI_TRUE : JNI_FALSE;
 }
+JFN(jboolean, nativeDeckLoop)(JNIEnv*, jclass, jlong h, jint deck, jboolean on, jdouble startSec, jdouble lengthSec) {
+  return H(h)->engine->deckLoop(deck, on == JNI_TRUE, startSec, lengthSec) ? JNI_TRUE : JNI_FALSE;
+}
 
 // ---- drum pads (the effects are plain parameters "fx.*" / "pads.*") ----
 JFN(jboolean, nativePadTrigger)(JNIEnv*, jclass, jlong h, jint pad, jfloat velocity) {

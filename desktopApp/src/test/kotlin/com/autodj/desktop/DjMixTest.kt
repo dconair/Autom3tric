@@ -283,6 +283,31 @@ class DjMixTest {
         pump(10)
         shotDecks(dj, "decks_playing", 1180, 800)
         shotDecks(dj, "decks_phone", 412, 900)
+        // hotcues and loops that the analysis prepared
+        val cues = dj.decks.deck[0].cues.filterNotNull()
+        assertTrue(cues.size >= 2, "the analysis prepares hotcues: $cues")
+        val target = cues.last()
+        dj.decks.cuePad(0, dj.decks.deck[0].cues.indexOfFirst { it == target })
+        pump(3)
+        assertTrue(abs(dj.snapshot.deck[0].posSec - target.sec) < 0.6, "a pad jumps to its cue: ${dj.snapshot.deck[0].posSec} vs ${target.sec}")
+        dj.decks.loopBeats(0, 4)
+        val loop = checkNotNull(dj.decks.deck[0].loop)
+        pump(10)
+        var lo = 1e9
+        var hi = -1e9
+        repeat(40) {  // 4 s inside a 4-beat loop (~2 s) of the demo song
+            pump(1)
+            val p = dj.snapshot.deck[0].posSec
+            lo = minOf(lo, p)
+            hi = maxOf(hi, p)
+        }
+        assertTrue(lo >= loop.startSec - 0.1 && hi <= loop.endSec + 0.1, "the position stays in the loop: $lo..$hi vs ${loop.startSec}..${loop.endSec}")
+        assertTrue(dj.snapshot.deck[0].playing)
+        dj.decks.loopOff(0)
+        assertTrue(dj.decks.deck[0].loop == null)
+        pump(10)
+        assertTrue(dj.snapshot.deck[0].posSec > hi - 0.1, "plays on after the loop")
+        shotDecks(dj, "decks_cues", 1180, 800)
         dj.decks.cue(0)
         pump(5)
         assertTrue(!dj.snapshot.deck[0].playing)

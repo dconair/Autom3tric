@@ -167,6 +167,8 @@ Alles Hörbare am DJ-Teil ist ein einziger `DjNode` im Graphen mit zwei Decks. E
   das Master-Tempo ändert (stückweise linear in Beats, mit geschlossenen Formeln für die Zeit) und die Automationsspuren (Lautstärke, EQ, Filter je Deck).
   Jeder Song ist an das Master-Raster „eingerastet“, die Quellposition ist also eine reine Funktion der Master-Beats; das Deck verfolgt sie mit begrenzter Korrektur.
 
+**Loops und Hotcues.** `Deck::setLoop(start, len)` speist den Stretcher mit dem Loop-Bereich im Kreis (`fillInput` bildet die wachsende Stream-Position per `mapLoop` auf den Bereich ab); die gehörte Position (`heardFrames`) läuft innerhalb des Loops zurück, der Klang bleibt lückenlos. `clearLoop` bildet die Cursor wieder auf echte Positionen ab, ein Seek aus dem Loop heraus beendet ihn. Command `DeckLoop` (i0 an/aus, `payload.d` Start, `f0` Länge, nicht im Plan-Modus). Solange ein Deck loopt, bekommt ein Sync-Folger kein Ziel (freier Lauf mit synchronem Tempo) und lernt den Beat-Versatz nach dem Loop neu. Die Hotcues berechnet `dj/CuePoints.kt` aus der Analyse (Abschnitte, Mix-In/-Out, Taktraster, höchstens 8, Mindestabstand zwei Takte); `DeckController` hält Cues und Loop je Deck als Compose-State.
+
 **Deck.** Signalsmith Stretch (MIT) mit Key-Lock. Der Start geht über `outputSeek`, der erste Ausgabewert entspricht damit schon der gewünschten Quellposition (keine Anlaufzeit).
 Pausieren blendet kurz aus und merkt sich die Stelle; ein Seek während des Ausblendens parkt das Deck am neuen Ort (`restAt_`).
 

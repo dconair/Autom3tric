@@ -55,6 +55,7 @@ internal object NativeEngine {
     @JvmStatic external fun nativeDeckLoad(handle: Long, deck: Int, trackId: Int, startSec: Double): Boolean
     @JvmStatic external fun nativeDeckPlay(handle: Long, deck: Int, play: Boolean): Boolean
     @JvmStatic external fun nativeDeckSeek(handle: Long, deck: Int, sec: Double): Boolean
+    @JvmStatic external fun nativeDeckLoop(handle: Long, deck: Int, on: Boolean, startSec: Double, lengthSec: Double): Boolean
     @JvmStatic external fun nativePadTrigger(handle: Long, pad: Int, velocity: Float): Boolean
     @JvmStatic external fun nativePadRow(handle: Long, pad: Int, mask: Int): Boolean
     @JvmStatic external fun nativeGranularSteps(handle: Long, voice: Int, mask: Int, cells: Long): Boolean

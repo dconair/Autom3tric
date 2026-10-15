@@ -29,6 +29,7 @@ enum class CmdType : std::uint8_t {
   DeckLoad,       // target = deck 0/1, payload.ptr = const Track* (null = unload), f0 = start position in seconds
   DeckPlay,       // target = deck, i0 = 1 play from the current position, 0 pause
   DeckSeek,       // target = deck, payload.d = seconds
+  DeckLoop,       // target = deck, i0 = 1 loop [payload.d, payload.d + f0) in seconds, 0 end the loop
   PlanStart,      // payload.ptr = const MixPlan* (kept alive by the control side until the audio thread returns it)
   PlanStop,       // stop the running mix plan (decks it started are cleared)
   PadTrigger,     // target = pad 0..15, f0 = velocity (0 = full)

@@ -317,6 +317,47 @@ TEST(Deck, PauseSeekAndEndOfTrack) {
   EXPECT_EQ(rig.e->heldTrackCount(), 0u);
 }
 
+TEST(Deck, LoopRepeatsTheRegionAndLeavesCleanly) {
+  DeckRig rig;
+  rig.e->deckLoad(0, sineTrack(330.0, 20.0));
+  rig.e->deckPlay(0, true);
+  rig.run(1.0);
+  // loop 4.0 .. 5.0 s, then jump into it: the position has to stay inside while the sound goes on
+  rig.e->deckSeek(0, 4.2);
+  rig.run(0.3);
+  rig.e->deckLoop(0, true, 4.0, 1.0);
+  double lo = 1e9, hi = -1e9;
+  float minPeak = 1e9f;
+  bool stillPlaying = true;
+  for (int i = 0; i < 40; ++i) {  // 4 s = four turns of the loop
+    const auto out = rig.run(0.1);
+    minPeak = std::min(minPeak, testutil::peak(out));
+    const DjStatus st = rig.status();
+    const double pos = st.deck[0].posSec;
+    stillPlaying = stillPlaying && st.deck[0].playing;
+    lo = std::min(lo, pos);
+    hi = std::max(hi, pos);
+  }
+  EXPECT_GE(lo, 3.95) << "never behind the loop start";
+  EXPECT_LE(hi, 5.05) << "never past the loop end";
+  EXPECT_GT(hi - lo, 0.7) << "the position actually wraps";
+  EXPECT_GT(minPeak, 0.05f) << "no gap in the sound";
+  EXPECT_TRUE(stillPlaying);
+
+  rig.e->deckLoop(0, false);
+  rig.run(0.5);
+  const double after = rig.status().deck[0].posSec;
+  rig.run(1.0);
+  EXPECT_NEAR(rig.status().deck[0].posSec - after, 1.0, 0.1) << "plays on linearly once the loop is off";
+
+  // a seek out of the loop ends it
+  rig.e->deckLoop(0, true, 8.0, 0.5);
+  rig.run(0.2);
+  rig.e->deckSeek(0, 12.0);
+  rig.run(1.0);
+  EXPECT_NEAR(rig.status().deck[0].posSec, 13.0, 0.15);
+}
+
 TEST(Deck, PauseFollowedByASeekRestsAtTheNewPlace) {
   DeckRig rig;
   rig.e->deckLoad(0, songTrack(124.0, 0.0, 1));

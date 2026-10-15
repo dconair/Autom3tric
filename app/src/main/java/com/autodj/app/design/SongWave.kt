@@ -40,6 +40,9 @@ fun SongWave(
     playSec: Double? = null,
     revealKey: Any? = analysis,
     showSections: Boolean = true,
+    cues: List<Double> = emptyList(),
+    loopFrom: Double = 0.0,
+    loopTo: Double = 0.0,
 ) {
     val c = Ds.c
     val reveal = remember(revealKey) { Animatable(if (Ds.reduceMotion) 1f else 0f) }
@@ -92,6 +95,17 @@ fun SongWave(
                     )
                 }
             }
+        }
+        if (loopTo > loopFrom) {
+            val x0 = (loopFrom / dur * w).toFloat()
+            val x1 = (loopTo / dur * w).toFloat()
+            drawRect(c.accent.copy(alpha = .28f), Offset(x0, 0f), Size((x1 - x0).coerceAtLeast(2.dp.toPx()), waveH))
+            drawRect(c.accent, Offset(x0, 0f), Size(2.dp.toPx(), waveH))
+            drawRect(c.accent, Offset(x1 - 2.dp.toPx(), 0f), Size(2.dp.toPx(), waveH))
+        }
+        for (cue in cues) {
+            val x = (cue / dur * w).toFloat()
+            drawRect(c.accentLit, Offset(x - 1.dp.toPx(), 0f), Size(2.dp.toPx(), waveH * .38f))
         }
         if (playSec != null) drawRect(Color.White, Offset(playX - 1.dp.toPx(), 0f), Size(2.dp.toPx(), waveH))
     }

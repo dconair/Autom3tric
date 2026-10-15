@@ -106,6 +106,12 @@ bool DjNode::handleCommand(const Command& cmd, GarbageQueue& garbage) noexcept {
     case CmdType::DeckSeek:
       if (plan_ == nullptr) decks_[d].seek(cmd.payload.d);
       return true;
+    case CmdType::DeckLoop:
+      if (plan_ == nullptr) {
+        if (cmd.i0 != 0) decks_[d].setLoop(cmd.payload.d, cmd.f0);
+        else decks_[d].clearLoop();
+      }
+      return true;
     case CmdType::PlanStart: {
       const MixPlan* p = static_cast<const MixPlan*>(cmd.payload.ptr);
       if (plan_ != nullptr) stopPlan(garbage);
@@ -212,7 +218,10 @@ void DjNode::processLive(ProcessIO& io) noexcept {
     const int o = 1 - d;
     const Deck& lead = decks_[o];
     const Track* lt = lead.track();
-    const bool canSync = follow[d] && lt != nullptr && lt->analysis.hasTempo() && a.hasTempo();
+    // a loop on either deck rewinds its heard position: the beat offset between the decks is learned again when it ends
+    const bool looped = dk.looping() || lead.looping();
+    if (looped) syncLocked_[d] = false;
+    const bool canSync = !looped && follow[d] && lt != nullptr && lt->analysis.hasTempo() && a.hasTempo();
     if (canSync) {
       const analysis::TrackAnalysis& la = lt->analysis;
       rate = std::clamp(la.bpm * rNom[o] / a.bpm, 0.5, 2.0);
