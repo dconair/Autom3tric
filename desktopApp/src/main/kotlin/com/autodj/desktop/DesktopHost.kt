@@ -86,6 +86,7 @@ class DesktopHost(libraryFile: File = defaultLibraryFile(), decoder: DesktopTrac
     fun poll() {
         dj.poll()
         engine.pollStatus()?.let { status = it }
+        com.autodj.app.ui.dj.feedBeat(dj, status)
         engine.pollViz()?.let { vizState = it }
         if (tick % 15 == 0) driver = engine.driverInfo()
         if (tick % 10 == 0) engine.collectGarbage()

@@ -1,8 +1,6 @@
 package com.autodj.app.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,27 +11,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Btn
+import com.autodj.app.design.Display
+import com.autodj.app.design.Ds
+import com.autodj.app.design.Tile
+import com.autodj.app.design.Txt
 import com.autodj.app.dj.PATTERN_REST
 import com.autodj.app.dj.PATTERN_STEPS
 import com.autodj.app.dj.PatternPresets
@@ -92,49 +89,39 @@ fun BeatPanel(host: InstrumentHost, p: InstrumentParams, voice: Int, cells: Int,
     val pattern = host.pattern ?: return
     val bpmSpec = host.spec("transport.bpm")
     val bpm = bpmSpec?.let { host.paramState(it).value } ?: 120f
-    val shape = RoundedCornerShape(14.dp)
     val stepNames = p.stepDiv.spec.enumNames
     val stepIdx = p.stepDiv.index.coerceIn(0, stepNames.size - 1)
     val playing = p.gate.value >= 0.5f
-    Column(
-        modifier.fillMaxWidth().clip(shape).border(1.dp, Palette.outline, shape).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+    Tile(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {
-                Text("Beat bauen", color = Palette.ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Jede Spalte ist ein Schritt, jede Zeile ein Stück deiner Datei. Tippe Punkte ins Raster.",
-                    color = Palette.muted, fontSize = 12.sp, lineHeight = 16.sp,
-                )
+                Txt("Beat bauen", style = AutoDjType.lead)
+                Txt("Jede Spalte ist ein Schritt, jede Zeile ein Stück deiner Datei. Tippe Punkte ins Raster.", style = AutoDjType.small, second = true)
             }
-            OutlinedPill(
-                if (playing) "■ Stopp" else "▶ Abspielen", onClick = { p.gate.set(if (playing) 0f else 1f) }, selected = playing,
-                help = InstrumentHelp.Play,
-            )
+            Btn(if (playing) "Stopp" else "Abspielen", onClick = { p.gate.set(if (playing) 0f else 1f) }, primary = !playing, on = playing, modifier = Modifier.helpText(InstrumentHelp.Play))
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            OutlinedPill("Beat-Start", onClick = { startBeat(host, p, voice, userSourceSlot) }, selected = false, help = InstrumentHelp.BeatStarter)
+        FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            OutlinedPill("Beat-Start", onClick = { startBeat(host, p, voice, userSourceSlot) }, small = true, help = InstrumentHelp.BeatStarter)
             for (preset in PatternPresets) {
                 OutlinedPill(
-                    preset.name, onClick = { pattern.load(voice, preset, cells) }, selected = pattern.name(voice) == preset.name,
+                    preset.name, onClick = { pattern.load(voice, preset, cells) }, selected = pattern.name(voice) == preset.name, small = true,
                     help = "${preset.name}: ${preset.hint}. ${InstrumentHelp.BeatPresets}",
                 )
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            Text("Schritt", color = Palette.muted, fontSize = 13.sp)
+        FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Txt("Schritt", style = AutoDjType.small, second = true)
             Stepper(
                 stepNames[stepIdx],
                 onPrev = { p.stepDiv.set(((stepIdx + stepNames.size - 1) % stepNames.size).toFloat()) },
                 onNext = { p.stepDiv.set(((stepIdx + 1) % stepNames.size).toFloat()) },
                 help = InstrumentHelp.BeatStep,
             )
-            Text("16 Schritte = ${patternLengthText(stepIdx)}", color = Palette.muted, fontSize = 13.sp)
+            Txt("16 Schritte = ${patternLengthText(stepIdx)}", style = AutoDjType.small, second = true)
             if (bpmSpec != null) {
-                Text("Tempo", color = Palette.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                Txt("Tempo", style = AutoDjType.small, second = true, modifier = Modifier.padding(start = 6.dp))
                 if (host.followsMusic) {
-                    Text("folgt der Musik", color = Palette.good, fontSize = 13.sp)
+                    Txt("folgt der Musik", style = AutoDjType.small)
                 } else {
                     Stepper(
                         "${bpm.roundToInt()}",
@@ -145,9 +132,9 @@ fun BeatPanel(host: InstrumentHost, p: InstrumentParams, voice: Int, cells: Int,
                 }
             }
         }
-        StepGrid(host, voice, cells)
+        Display(Modifier.fillMaxWidth().padding(top = 12.dp)) { StepGrid(host, voice, cells) }
         if (pattern.isEmpty(voice)) {
-            Text("Das Raster ist leer: Tippe einen Punkt, oder wähle oben eine Vorlage.", color = Palette.warn, fontSize = 12.sp)
+            Txt("Das Raster ist leer: Tippe einen Punkt, oder wähle oben eine Vorlage.", style = AutoDjType.small, color = Ds.c.warn, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
@@ -156,55 +143,52 @@ fun BeatPanel(host: InstrumentHost, p: InstrumentParams, voice: Int, cells: Int,
 private fun StepGrid(host: InstrumentHost, voice: Int, cells: Int) {
     val pattern = host.pattern ?: return
     val measurer = rememberTextMeasurer()
+    val c = Ds.c
     val rowHeight = if (cells > 8) 13.dp else 22.dp
-    val labelStyle = TextStyle(color = Palette.muted, fontSize = 10.sp)
+    val labelStyle = AutoDjType.small.copy(color = c.screenDim)
     val color = VoiceColors[voice.coerceIn(0, VoiceColors.size - 1)]
     val activeStep = host.viz.step[voice.coerceIn(0, 3)]
     val toggle by rememberUpdatedState({ step: Int, cell: Int -> pattern.toggle(voice, step, cell) })
-    val gutter = 22.dp
+    val gutter = 28.dp
+    val headH = 22.dp
     // read the cells in composition, so that the grid redraws when the pattern changes
     val picks = IntArray(PATTERN_STEPS) { pattern.cell(voice, it).let { c -> if (c == PATTERN_REST) PATTERN_REST else c % cells } }
     Canvas(
         Modifier
             .fillMaxWidth()
-            .height(rowHeight * cells + 16.dp)
+            .height(rowHeight * cells + headH + 8.dp)
             .semantics { contentDescription = "Beat-Raster, 16 Schritte mal $cells Stücke" }
             .pointerInput(cells, voice) {
                 detectTapGestures { pos ->
                     val g = gutter.toPx()
-                    val top = 16.dp.toPx()
-                    val cw = (size.width - g) / PATTERN_STEPS
+                    val top = headH.toPx()
+                    val cw = (size.width - g - 8.dp.toPx()) / PATTERN_STEPS
                     val rh = rowHeight.toPx()
                     val step = ((pos.x - g) / cw).toInt()
                     val cell = ((pos.y - top) / rh).toInt()
-                    if (step in 0 until PATTERN_STEPS && cell in 0 until cells) toggle(step, cell)
+                    if (pos.x >= g && pos.y >= top && step in 0 until PATTERN_STEPS && cell in 0 until cells) toggle(step, cell)
                 }
             },
     ) {
         val g = gutter.toPx()
-        val top = 16.dp.toPx()
-        val cw = (size.width - g) / PATTERN_STEPS
+        val top = headH.toPx()
+        val cw = (size.width - g - 8.dp.toPx()) / PATTERN_STEPS
         val rh = rowHeight.toPx()
         for (s in 0 until PATTERN_STEPS) {
             val x = g + s * cw
             // beat numbers above every fourth column
-            if (s % 4 == 0) {
-                val label = "${s / 4 + 1}"
-                drawText(measurer, label, Offset(x + 2f, 0f), labelStyle)
-            }
-            val shade = if ((s / 4) % 2 == 0) Palette.bodySunken.copy(alpha = 0.55f) else Palette.bodySunken.copy(alpha = 0.25f)
-            drawRoundRect(shade, Offset(x + 1f, top), Size(cw - 2f, rh * cells), CornerRadius(3f))
-            if (s == activeStep) drawRoundRect(Palette.ink.copy(alpha = 0.18f), Offset(x + 1f, top), Size(cw - 2f, rh * cells), CornerRadius(3f))
+            if (s % 4 == 0) drawText(measurer, "${s / 4 + 1}", Offset(x + 2f, 2.dp.toPx()), labelStyle)
+            val band = if ((s / 4) % 2 == 0) c.screen2 else c.screen
+            drawRoundRect(if (s == activeStep) c.screen3 else band, Offset(x + 1f, top), Size(cw - 2f, rh * cells), CornerRadius(3.dp.toPx()))
         }
         for (r in 0 until cells) {
-            if (cells <= 8 || r % 4 == 0) drawText(measurer, "${r + 1}", Offset(2f, top + r * rh + (rh - 12f) / 2f), labelStyle)
-            drawLine(Palette.outline.copy(alpha = 0.25f), Offset(g, top + r * rh), Offset(size.width, top + r * rh), 1f)
+            if (cells <= 8 || r % 4 == 0) drawText(measurer, "${r + 1}", Offset(4.dp.toPx(), top + r * rh + (rh - 16f) / 2f), labelStyle)
         }
         for (s in 0 until PATTERN_STEPS) {
-            val c = picks[s]
-            if (c == PATTERN_REST) continue
+            val cell = picks[s]
+            if (cell == PATTERN_REST) continue
             val x = g + s * cw
-            drawRoundRect(if (s == activeStep) Color.White else color, Offset(x + 2f, top + c * rh + 1.5f), Size(cw - 4f, rh - 3f), CornerRadius(4f))
+            drawRoundRect(if (s == activeStep) c.screenInk else color, Offset(x + 2f, top + cell * rh + 1.5f), Size(cw - 4f, rh - 3f), CornerRadius(3.dp.toPx()))
         }
     }
 }

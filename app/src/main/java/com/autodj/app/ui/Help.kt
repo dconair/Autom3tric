@@ -1,25 +1,23 @@
 package com.autodj.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.autodj.app.design.AutoDjSpace
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Txt
 
 /** The one line of explanation under the instrument: it shows what the control you touched last (or, with a mouse, hover over) does. */
 class HelpState(initial: String) {
@@ -50,13 +48,8 @@ fun Modifier.helpText(text: String): Modifier = composed {
 
 @Composable
 fun HelpStrip(help: HelpState, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().background(Palette.bodyRaised).padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("ⓘ", color = Palette.copper, fontSize = 16.sp)
-        Text(help.text, color = Palette.inkSoft, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+    Box(modifier.fillMaxWidth().padding(horizontal = AutoDjSpace.margin).padding(bottom = AutoDjSpace.margin, top = 4.dp)) {
+        Txt(help.text, style = AutoDjType.small, second = true, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp))
     }
 }
 

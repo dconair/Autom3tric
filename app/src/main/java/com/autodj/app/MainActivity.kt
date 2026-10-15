@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        installAutoDjFonts()
         setContent {
             AutoDjTheme {
                 AutoDjApp(

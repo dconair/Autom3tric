@@ -96,6 +96,7 @@ class AutoDjViewModel(app: Application) : AndroidViewModel(app) {
                 if (!uiVisible) continue
                 dj.poll()
                 engine.pollStatus()?.let { status = it }
+                com.autodj.app.ui.dj.feedBeat(dj, status)
                 engine.pollViz()?.let { viz = it }
                 if (tick % 15 == 0) driver = engine.driverInfo()
                 if (tick % 10 == 0) engine.collectGarbage()

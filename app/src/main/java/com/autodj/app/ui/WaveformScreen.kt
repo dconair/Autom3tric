@@ -1,19 +1,15 @@
 package com.autodj.app.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -21,7 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Display
+import com.autodj.app.design.Ds
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -57,23 +55,15 @@ fun WaveformScreen(
     val measurer = rememberTextMeasurer()
     val touch by rememberUpdatedState(onTouch)
     val release by rememberUpdatedState(onRelease)
-    val labelStyle = TextStyle(color = Palette.screenText, fontSize = 10.sp)
-    val headerStyle = TextStyle(color = Palette.screenText, fontSize = 11.sp)
-    val bezel = RoundedCornerShape(26.dp)
+    val c = Ds.c
+    val labelStyle = AutoDjType.small.copy(color = c.screenDim)
+    val headerStyle = AutoDjType.small.copy(color = c.screenDim)
     val header = info?.let { String.format(Locale.US, "%s · %.1f s · %.1f kHz", it.name, it.seconds, it.sampleRate / 1000.0) } ?: "no source"
 
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(bezel)
-            .background(Palette.ink)
-            .padding(5.dp),
-    ) {
+    Display(modifier.fillMaxWidth()) {
         Canvas(
             Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(21.dp))
-                .background(Palette.screen)
                 .semantics { contentDescription = "source overview, touch to play, drag to move" }
                 .pointerInput(Unit) {
                     awaitEachGesture {
@@ -96,18 +86,14 @@ fun WaveformScreen(
             val split = h * 0.55f
             val n = cells.coerceAtLeast(1)
 
-            // cell plate behind the cell that is currently read from
+            // cells as alternating bands (no grid lines), the one being read from is lit; labels = the key of each cell
             val activeCell = viz.cell[voice.coerceIn(0, GrainVizSnapshot.MAX_VOICES - 1)]
-            if (activeCell in 0 until n) {
-                drawRect(Color.White.copy(alpha = 0.055f), Offset(w * activeCell / n, 0f), Size(w / n, h))
-            }
-            // cell grid + labels
             for (i in 0 until n) {
                 val x = w * i / n
-                if (i > 0) drawLine(Palette.screenGrid, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                drawText(measurer, cellNoteName(i), Offset(x + 4.dp.toPx(), split + 2.dp.toPx()), labelStyle)
+                if (i % 2 == 1) drawRect(c.screen2, Offset(x, 0f), Size(w / n, h))
+                if (i == activeCell) drawRect(c.screen3, Offset(x, 0f), Size(w / n, h))
+                if (w / n >= 40.dp.toPx() || i % 2 == 0) drawText(measurer, cellNoteName(i), Offset(x + 4.dp.toPx(), split + 4.dp.toPx()), labelStyle)
             }
-            drawLine(Palette.screenGrid, Offset(0f, split), Offset(w, split), strokeWidth = 1f)
 
             // grain cloud (top region)
             val lanes = GrainVizSnapshot.MAX_VOICES
@@ -138,11 +124,11 @@ fun WaveformScreen(
                 val scale = if (norm > 1e-6f) half / norm else 0f
                 val px = w.toInt().coerceAtLeast(1)
                 for (x in 0 until px) {
-                    val c = (x.toLong() * cols / px).toInt().coerceIn(0, cols - 1)
+                    val col = (x.toLong() * cols / px).toInt().coerceIn(0, cols - 1)
                     // widen to the next column when the screen has more pixels than columns
-                    val lo = peaks[2 * c] * scale
-                    val hi = peaks[2 * c + 1] * scale
-                    drawLine(Palette.wave.copy(alpha = 0.9f), Offset(x + 0.5f, mid - hi - 0.5f), Offset(x + 0.5f, mid - lo + 0.5f), strokeWidth = 1f)
+                    val lo = peaks[2 * col] * scale
+                    val hi = peaks[2 * col + 1] * scale
+                    drawLine(c.screenInk, Offset(x + 0.5f, mid - hi - 0.5f), Offset(x + 0.5f, mid - lo + 0.5f), strokeWidth = 1f)
                 }
             }
 

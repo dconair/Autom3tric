@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,8 +20,12 @@ fun bpmText(bpm: Double) = String.format(Locale.US, "%.1f", bpm)
 /** The tile with the running tempo: a large number, and what drives it. It breathes with the beat. */
 @Composable
 fun BpmTile(bpm: Double, label: String, modifier: Modifier = Modifier, phone: Boolean = false) {
-    Tile(modifier.height(if (phone) 48.dp else AutoDjSpace.bar), padding = if (phone) 12.dp else 14.dp, pulse = true) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val h = if (phone) 48.dp else AutoDjSpace.bar
+    Tile(modifier.height(h), padding = 0.dp, pulse = true) {
+        Row(
+            Modifier.height(h).padding(horizontal = if (phone) 12.dp else 16.dp).widthIn(min = if (phone) 64.dp else 150.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Txt(bpmText(bpm), style = if (phone) AutoDjType.lead else AutoDjType.head, maxLines = 1)
             if (!phone) {
                 Column {

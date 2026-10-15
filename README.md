@@ -25,9 +25,9 @@ Du findest sie jederzeit über **„? Anleitung“** (oben rechts; im Plugin im 
 |---|---|
 | ![Anleitung Auto-Mix](docs/screenshots/guide_auto_mix.png) | ![Anleitung Beat](docs/screenshots/guide_plugin_beat.png) |
 
-| Auto-Mix (läuft) | Decks | Effekte | Pads + Sequencer |
-|---|---|---|---|
-| ![Auto-Mix](docs/screenshots/mix_playing.png) | ![Decks](docs/screenshots/decks_playing.png) | ![Effekte](docs/screenshots/effects_on_desktop.png) | ![Pads](docs/screenshots/pads_playing_desktop.png) |
+| Bibliothek | Auto-Mix (läuft) | Decks | Effekte | Pads + Sequencer |
+|---|---|---|---|---|
+| ![Bibliothek](docs/screenshots/library_desktop.png) | ![Auto-Mix](docs/screenshots/mix_playing.png) | ![Decks](docs/screenshots/decks_playing.png) | ![Effekte](docs/screenshots/effects_on_desktop.png) | ![Pads](docs/screenshots/pads_playing_desktop.png) |
 
 Nichts davon wurde auf einem Mac oder Telefon gehört; geprüft ist es mit Host-Tests, JVM-Tests gegen die echte native Bibliothek (synthetische
 Songs, gerenderte Audioausgabe) und der CI.

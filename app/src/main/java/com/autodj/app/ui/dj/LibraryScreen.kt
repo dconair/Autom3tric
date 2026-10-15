@@ -1,53 +1,65 @@
 package com.autodj.app.ui.dj
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.autodj.app.dj.DjColors
-import com.autodj.app.ui.TabTip
+import com.autodj.app.design.AutoDjMotion
+import com.autodj.app.design.AutoDjShape
+import com.autodj.app.design.AutoDjSpace
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Btn
+import com.autodj.app.design.Display
+import com.autodj.app.design.Ds
+import com.autodj.app.design.KeyChip
+import com.autodj.app.design.ProgressBar
+import com.autodj.app.design.SongWave
+import com.autodj.app.design.StatusKind
+import com.autodj.app.design.StatusTag
+import com.autodj.app.design.Tile
+import com.autodj.app.design.TileKind
+import com.autodj.app.design.Txt
+import com.autodj.app.design.camelotChip
+import com.autodj.app.design.riseIn
 import com.autodj.app.dj.DjController
-import com.autodj.app.dj.DjTheme
-import com.autodj.app.dj.Overview
-import com.autodj.app.dj.TrackAnalysisInfo
 import com.autodj.app.dj.TrackItem
 import com.autodj.app.dj.TrackStatus
-import com.autodj.app.dj.camelotColor
 import java.util.Locale
 
 /**
- * The track library: add songs, see tempo / key / energy / structure per song, send a song to a deck or to the granular
- * instrument. [onPickFiles] opens the platform's file picker (it calls back into the controller itself).
+ * The track library: add songs, see tempo / key / structure per song, send a song to a deck or to the granular instrument.
+ * [onPickFiles] opens the platform's file picker (it calls back into the controller itself).
  */
 @Composable
 fun LibraryScreen(
@@ -59,12 +71,14 @@ fun LibraryScreen(
     onQueue: ((TrackItem) -> Unit)? = null,
     isQueued: (TrackItem) -> Boolean = { false },
     footer: String? = null,
+    dropHint: Boolean = false,
 ) = LibraryContent(
     tracks = dj.tracks, onPickFiles = onPickFiles, onDemo = { dj.addDemoTracks() }, onRemove = { dj.remove(it.id) },
     modifier = modifier, onLoadDeck = onLoadDeck, onGranular = onGranular, onQueue = onQueue, isQueued = isQueued, footer = footer,
+    dropHint = dropHint,
 )
 
-/** The stateless library list (also what the screenshot tests render). */
+/** The stateless library (also what the screenshot tests render). [initialSelected] opens that row at first. */
 @Composable
 fun LibraryContent(
     tracks: List<TrackItem>,
@@ -77,34 +91,26 @@ fun LibraryContent(
     onQueue: ((TrackItem) -> Unit)? = null,
     isQueued: (TrackItem) -> Boolean = { false },
     footer: String? = null,
+    dropHint: Boolean = false,
+    initialSelected: String? = null,
 ) {
-    DjTheme {
-        Column(modifier.fillMaxSize().background(DjColors.bg).padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("Bibliothek", color = DjColors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                    val n = tracks.size
-                    val ready = tracks.count { it.ready }
-                    Text(
-                        if (n == 0) "Noch keine Songs" else "$ready von $n Songs analysiert",
-                        color = DjColors.muted, fontSize = 13.sp,
-                    )
-                }
-                OutlinedButton(onClick = onDemo) { Text("Demo-Songs", color = DjColors.text) }
-                Button(onClick = onPickFiles) { Text("Songs hinzufügen") }
-            }
-            Spacer(Modifier.height(12.dp))
-            TabTip(
-                "library", "Hier liegen deine Songs. Mit „A“ und „B“ lädst du einen auf ein Deck, mit „In die Mix-Liste“ nimmt ihn der Auto-Mix, mit „Granular“ spielst du damit im Plugin.",
-                Modifier.padding(bottom = 8.dp), lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 0,
-            )
+    var selectedId by remember { mutableStateOf(initialSelected) }
+    var keyFilter by remember { mutableStateOf<String?>(null) }
+    val selected = tracks.firstOrNull { it.id == selectedId }
+    val shown = if (keyFilter == null) tracks else tracks.filter { it.analysis?.camelot == keyFilter }
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val wide = maxWidth >= 860.dp
+        val margin = if (wide) AutoDjSpace.margin else AutoDjSpace.phoneMargin
+        val gap = if (wide) AutoDjSpace.gap else AutoDjSpace.phoneGap
+        val rows: @Composable (Modifier) -> Unit = { m ->
             if (tracks.isEmpty()) {
-                EmptyState(Modifier.weight(1f))
+                EmptyTile(onPickFiles, onDemo, m)
             } else {
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tracks, key = { it.id }) { item ->
+                LazyColumn(m, verticalArrangement = Arrangement.spacedBy(AutoDjSpace.rowGap)) {
+                    items(shown, key = { it.id }) { item ->
                         TrackRow(
-                            item,
+                            item, wide = wide, open = item.id == selectedId,
+                            onToggle = { selectedId = if (selectedId == item.id) null else item.id },
                             onRemove = { onRemove(item) },
                             onLoadDeck = onLoadDeck?.let { f -> { deck: Int -> f(item, deck) } },
                             onGranular = onGranular?.let { f -> { f(item) } },
@@ -112,26 +118,132 @@ fun LibraryContent(
                             queued = isQueued(item),
                         )
                     }
+                    if (shown.isEmpty()) item { Txt("Kein Song in dieser Tonart.", style = AutoDjType.body, second = true, modifier = Modifier.padding(16.dp)) }
+                    if (footer != null) item { Txt(footer, style = AutoDjType.small, second = true, modifier = Modifier.padding(vertical = 8.dp)) }
                 }
             }
-            if (footer != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(footer, color = DjColors.muted, fontSize = 12.sp)
+        }
+        if (wide) {
+            Row(Modifier.fillMaxSize().padding(horizontal = margin).padding(bottom = margin), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                rows(Modifier.weight(8f).fillMaxHeight())
+                Column(Modifier.weight(4f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    AddTile(onPickFiles, onDemo, dropHint, Modifier.fillMaxWidth().riseIn(0))
+                    StatsTile(tracks, Modifier.fillMaxWidth().riseIn(1))
+                    KeysTile(selected?.analysis?.camelot, keyFilter, { keyFilter = if (keyFilter == it) null else it }, Modifier.fillMaxWidth().riseIn(2))
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().padding(horizontal = margin), verticalArrangement = Arrangement.spacedBy(gap)) {
+                AddTile(onPickFiles, onDemo, dropHint, Modifier.fillMaxWidth(), compact = true)
+                rows(Modifier.weight(1f).fillMaxWidth())
+            }
+        }
+    }
+}
+
+// ---- right-hand tiles ----------------------------------------------------------------------------------------------
+
+@Composable
+private fun AddTile(onPickFiles: () -> Unit, onDemo: () -> Unit, dropHint: Boolean, modifier: Modifier, compact: Boolean = false) {
+    Tile(modifier, kind = TileKind.Accent, padding = if (compact) 12.dp else 20.dp) {
+        if (compact) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Txt("Songs hinzufügen", style = AutoDjType.lead, modifier = Modifier.weight(1f), maxLines = 1)
+                Btn("Dateien wählen", onClick = onPickFiles, small = true)
+                Btn("Demo", onClick = onDemo, small = true, description = "Demo-Songs laden")
+            }
+        } else {
+            Txt("Songs hinzufügen", style = AutoDjType.head)
+            Txt(
+                "MP3, WAV, FLAC, M4A und OGG. Die App erkennt Tempo, Takt, Tonart und Aufbau jedes Songs." + if (dropHint) " Du kannst Dateien auch ins Fenster ziehen." else "",
+                style = AutoDjType.body, modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn("Dateien wählen", onClick = onPickFiles)
+                Btn("Demo-Songs", onClick = onDemo)
             }
         }
     }
 }
 
 @Composable
-private fun EmptyState(modifier: Modifier) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Songs hinzufügen, um zu mixen", color = DjColors.text, fontSize = 18.sp)
-            Text(
-                "Die App analysiert jeden Song: Tempo, Beat-Raster, Tonart, Energie und Aufbau.\n" +
-                    "MP3, WAV, FLAC, M4A und OGG werden unterstützt. Ohne eigene Dateien helfen die Demo-Songs.",
-                color = DjColors.muted, fontSize = 13.sp,
-            )
+private fun StatsTile(tracks: List<TrackItem>, modifier: Modifier) {
+    val ready = tracks.count { it.ready }
+    val total = tracks.sumOf { it.analysis?.durationSec ?: 0.0 }
+    Tile(modifier) {
+        Txt("Bibliothek", style = AutoDjType.lead)
+        Txt(tracks.size.toString(), style = AutoDjType.display, modifier = Modifier.padding(top = 4.dp))
+        Txt(if (tracks.size == 1) "Song" else "Songs", style = AutoDjType.small, second = true)
+        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Column {
+                Txt(if (total > 0) formatLong(total) else "–", style = AutoDjType.lead)
+                Txt("Spielzeit", style = AutoDjType.small, second = true)
+            }
+            Column {
+                Txt(if (tracks.isEmpty()) "–" else "$ready von ${tracks.size}", style = AutoDjType.lead)
+                Txt("analysiert", style = AutoDjType.small, second = true)
+            }
+        }
+    }
+}
+
+/** The Camelot wheel as 2 × 12 chips: the keys that blend with the chosen song are lit; a tap filters the list. */
+@Composable
+private fun KeysTile(of: String?, filter: String?, onFilter: (String) -> Unit, modifier: Modifier) {
+    val fits = of?.let(::compatibleKeys).orEmpty()
+    Tile(modifier) {
+        Txt("Passende Tonarten", style = AutoDjType.lead)
+        Txt(
+            if (of == null) "Wähle einen Song, dann leuchten die Tonarten, die dazu passen." else "Zu $of passen die hellen Felder. Tippe eines an, um die Liste zu filtern.",
+            style = AutoDjType.small, second = true, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+        )
+        listOf('A', 'B').forEach { letter ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                (1..12).forEach { n ->
+                    val key = "$n$letter"
+                    KeyCell(n.toString(), key, lit = of == null || key in fits, on = filter == key, onClick = { onFilter(key) }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeyCell(label: String, key: String, lit: Boolean, on: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val c = Ds.c
+    Box(
+        modifier.height(32.dp).clip(AutoDjShape)
+            .background(if (on) c.ink else if (lit) camelotChip(key) else c.tile2)
+            .semantics { contentDescription = "Tonart $key" }
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.Button) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Txt(label, style = AutoDjType.small, color = if (on) c.onInk else if (lit) Color(0xFF2A1D17) else c.ink2, textAlign = TextAlign.Center, maxLines = 1)
+    }
+}
+
+/** Camelot keys that mix cleanly with [key]: same, one step either way, and the relative major/minor. */
+internal fun compatibleKeys(key: String): Set<String> {
+    val n = key.dropLast(1).toIntOrNull() ?: return emptySet()
+    val l = key.last()
+    val other = if (l == 'A') 'B' else 'A'
+    fun wrap(i: Int) = ((i - 1 + 12) % 12) + 1
+    return setOf("$n$l", "${wrap(n + 1)}$l", "${wrap(n - 1)}$l", "$n$other")
+}
+
+// ---- list ----------------------------------------------------------------------------------------------------------
+
+@Composable
+private fun EmptyTile(onPickFiles: () -> Unit, onDemo: () -> Unit, modifier: Modifier) {
+    Tile(modifier.fillMaxWidth().riseIn(0), padding = 32.dp) {
+        Txt("Noch keine Songs", style = AutoDjType.head)
+        Txt(
+            "Die App analysiert jeden Song: Tempo, Taktraster, Tonart und Aufbau. Mit eigenen Dateien oder mit den Demo-Songs kannst du sofort loslegen.",
+            style = AutoDjType.body, second = true, modifier = Modifier.padding(top = 8.dp),
+        )
+        Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Btn("Songs hinzufügen", onClick = onPickFiles, primary = true)
+            Btn("Demo-Songs", onClick = onDemo)
         }
     }
 }
@@ -139,86 +251,81 @@ private fun EmptyState(modifier: Modifier) {
 @Composable
 private fun TrackRow(
     item: TrackItem,
+    wide: Boolean,
+    open: Boolean,
+    onToggle: () -> Unit,
     onRemove: () -> Unit,
     onLoadDeck: ((Int) -> Unit)?,
     onGranular: (() -> Unit)?,
     onQueue: (() -> Unit)?,
     queued: Boolean,
 ) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DjColors.panel)
-            .border(1.dp, DjColors.line, RoundedCornerShape(10.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    val a = item.analysis
+    val ready = item.ready && a != null
+    Tile(
+        Modifier.fillMaxWidth().animateContentSize(tween(AutoDjMotion.ms(AutoDjMotion.base), easing = AutoDjMotion.out)),
+        kind = if (open && ready) TileKind.Ink else TileKind.Plain, padding = 0.dp,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth().height(AutoDjSpace.row)
+                .clickable(enabled = ready, indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.Button) { onToggle() }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Column(Modifier.weight(1f)) {
-                Text(item.name, color = DjColors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle(item), color = if (item.status == TrackStatus.Failed) DjColors.bad else DjColors.muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Txt(item.name, style = AutoDjType.row, maxLines = 1)
+                if (!ready) Txt(subtitle(item), style = AutoDjType.small, second = true, maxLines = 1)
             }
-            val a = item.analysis
-            if (item.ready && a != null) {
-                if (a.hasKey) KeyChip(a.camelot, a.keyName)
-                BpmBlock(a)
-            }
-        }
-        when (item.status) {
-            TrackStatus.Queued, TrackStatus.Decoding, TrackStatus.Analysing -> {
-                if (item.progress < 0f) LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp), color = DjColors.deckA, trackColor = DjColors.line)
-                else LinearProgressIndicator(progress = { item.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp), color = DjColors.deckA, trackColor = DjColors.line)
-            }
-            TrackStatus.Ready -> item.analysis?.let { a -> WaveformStrip(item.overview, a, Modifier.fillMaxWidth().height(54.dp)) }
-            TrackStatus.Failed -> Unit
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (item.ready) {
-                if (onLoadDeck != null) {
-                    DeckButton("A", DjColors.deckA) { onLoadDeck(0) }
-                    DeckButton("B", DjColors.deckB) { onLoadDeck(1) }
-                }
-                if (onQueue != null) {
-                    TextButton(onClick = onQueue, enabled = !queued) {
-                        Text(if (queued) "✓ In der Mix-Liste" else "In die Mix-Liste", color = if (queued) DjColors.good else DjColors.text)
+            if (ready && a != null) {
+                Txt(if (a.hasTempo) String.format(Locale.US, "%.1f", a.bpm) else "–", style = AutoDjType.bodyMedium, modifier = Modifier.width(52.dp), textAlign = TextAlign.End, maxLines = 1)
+                Box(Modifier.width(44.dp), contentAlignment = Alignment.CenterStart) { if (a.hasKey) KeyChip(a.camelot) }
+                if (wide) Txt(formatTime(a.durationSec), style = AutoDjType.body, second = true, modifier = Modifier.width(48.dp), textAlign = TextAlign.End, maxLines = 1)
+            } else {
+                when (item.status) {
+                    TrackStatus.Failed -> {
+                        StatusTag(StatusKind.Bad, "Fehlgeschlagen")
+                        Btn("Entfernen", onClick = onRemove, small = true)
+                    }
+                    else -> {
+                        if (item.progress >= 0f) ProgressBar(item.progress, Modifier.width(96.dp))
+                        StatusTag(StatusKind.Idle, if (item.status == TrackStatus.Queued) "Wartet" else "Läuft")
                     }
                 }
-                if (onGranular != null) TextButton(onClick = onGranular) { Text("Granular", color = DjColors.text) }
             }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = onRemove) { Text("Entfernen", color = DjColors.muted) }
+        }
+        if (open && ready && a != null) {
+            Column(Modifier.fillMaxWidth().riseIn(0).padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Display(Modifier.fillMaxWidth().height(if (wide) 84.dp else 72.dp)) {
+                    SongWave(item.overview, a, lit = Ds.c.deckALit, modifier = Modifier.fillMaxSize().padding(8.dp))
+                }
+                if (a.sections.isNotEmpty() && a.durationSec > 0) SectionBar(item)
+                Txt(subtitle(item), style = AutoDjType.small, second = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    if (onLoadDeck != null) {
+                        Btn("Auf Deck A", onClick = { onLoadDeck(0) })
+                        Btn("Auf Deck B", onClick = { onLoadDeck(1) })
+                    }
+                    if (onQueue != null) Btn(if (queued) "In der Mix-Liste" else "In die Mix-Liste", onClick = onQueue, primary = !queued, enabled = !queued)
+                    if (onGranular != null) Btn("Granular", onClick = onGranular)
+                    Spacer(Modifier.weight(1f))
+                    Btn("Entfernen", onClick = onRemove)
+                }
+            }
         }
     }
 }
 
+/** Intro, Teil, Break, Drop, Outro as blocks over the length of the song. */
 @Composable
-private fun DeckButton(label: String, color: Color, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.Black),
-        modifier = Modifier.size(width = 44.dp, height = 34.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-    ) { Text(label, fontWeight = FontWeight.Bold) }
-}
-
-@Composable
-private fun KeyChip(camelot: String, name: String) {
-    val c = camelotColor(camelot)
-    Column(
-        Modifier.clip(RoundedCornerShape(8.dp)).background(c.copy(alpha = 0.18f)).border(1.dp, c.copy(alpha = 0.6f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(camelot, color = c, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Text(name, color = DjColors.muted, fontSize = 10.sp)
-    }
-}
-
-@Composable
-private fun BpmBlock(a: TrackAnalysisInfo) {
-    Column(Modifier.width(76.dp), horizontalAlignment = Alignment.End) {
-        if (a.hasTempo) {
-            Text(String.format(Locale.US, "%.1f", a.bpm), color = DjColors.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("BPM", color = DjColors.muted, fontSize = 10.sp)
-        } else {
-            Text("–", color = DjColors.muted, fontSize = 20.sp)
-            Text("kein Tempo", color = DjColors.muted, fontSize = 10.sp)
+private fun SectionBar(item: TrackItem) {
+    val a = item.analysis ?: return
+    val c = Ds.c
+    Row(Modifier.fillMaxWidth().height(28.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        a.sections.forEach { s ->
+            val w = ((s.endSec - s.startSec) / a.durationSec).toFloat().coerceAtLeast(0.02f)
+            Box(Modifier.weight(w).fillMaxHeight().clip(AutoDjShape).background(c.onInk.copy(alpha = if (s.label == "drop") .34f else .16f)), contentAlignment = Alignment.CenterStart) {
+                Txt(sectionLabel(s.label), style = AutoDjType.small, modifier = Modifier.padding(horizontal = 8.dp), maxLines = 1)
+            }
         }
     }
 }
@@ -232,10 +339,10 @@ private fun subtitle(item: TrackItem): String = when (item.status) {
         val a = item.analysis
         if (a == null) "" else buildString {
             append(formatTime(a.durationSec))
+            if (a.hasKey) append(" · ").append(a.keyName)
             if (a.hasTempo) append(String.format(Locale.US, " · Raster %d %%", (a.gridConfidence * 100).toInt()))
             else append(" · ohne erkennbares Tempo")
             if (a.hasTempo && a.gridConfidence < 0.5) append(" (unsicher)")
-            if (a.sections.isNotEmpty()) append(" · ").append(a.sections.joinToString(" › ") { sectionLabel(it.label) })
         }
     }
 }
@@ -253,65 +360,8 @@ internal fun formatTime(sec: Double): String {
     return String.format(Locale.US, "%d:%02d", s / 60, s % 60)
 }
 
-internal fun sectionColor(label: String): Color = when (label) {
-    "intro" -> Color(0xFF5C7FA3)
-    "drop" -> Color(0xFFE0A440)
-    "break" -> Color(0xFF7E6BC4)
-    "outro" -> Color(0xFF5C7FA3)
-    else -> Color(0xFF6B7280)
-}
-
-/** Waveform overview with the section strip underneath and the bar energy as a faint ribbon behind it. */
-@Composable
-internal fun WaveformStrip(overview: Overview?, a: TrackAnalysisInfo, modifier: Modifier) {
-    Canvas(modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF0A0B0D))) {
-        val w = size.width
-        val h = size.height
-        val stripH = 5f
-        val waveH = h - stripH - 2f
-        val mid = waveH / 2f
-        val dur = a.durationSec.coerceAtLeast(0.001)
-
-        // bar energy ribbon
-        if (a.barEnergy.isNotEmpty() && a.barSec > 0.0) {
-            val barW = (a.barSec / dur * w).toFloat()
-            a.barEnergy.forEachIndexed { i, e ->
-                val x = ((a.firstBarSec + i * a.barSec) / dur * w).toFloat()
-                val bh = e * waveH
-                drawRect(Color(0xFF1B2230), Offset(x, mid - bh / 2f), Size(barW.coerceAtLeast(1f), bh))
-            }
-        }
-        // waveform
-        if (overview != null && overview.columns > 0) {
-            val n = overview.columns
-            for (i in 0 until n) {
-                val x = (i + 0.5f) / n * w
-                val top = mid - overview.max[i] / 127f * mid
-                val bottom = mid - overview.min[i] / 127f * mid
-                drawLine(DjColors.wave, Offset(x, top), Offset(x, if (bottom - top < 1f) top + 1f else bottom), strokeWidth = (w / n).coerceAtLeast(1f))
-            }
-        }
-        // beat grid: a tick on every downbeat, only if the grid is trustworthy
-        if (a.hasTempo && a.gridConfidence >= 0.5 && a.barSec > 0.0) {
-            var t = a.firstBarSec
-            var k = 0
-            while (t < dur) {
-                val x = (t / dur * w).toFloat()
-                if (k % 4 == 0) drawLine(Color(0x33FFFFFF), Offset(x, 0f), Offset(x, waveH), strokeWidth = 1f)
-                t += a.barSec
-                k++
-            }
-        }
-        // sections
-        for (s in a.sections) {
-            val x0 = (s.startSec / dur * w).toFloat()
-            val x1 = (s.endSec / dur * w).toFloat()
-            drawRect(sectionColor(s.label), Offset(x0 + 1f, h - stripH), Size((x1 - x0 - 2f).coerceAtLeast(1f), stripH))
-        }
-        // mix points
-        if (a.hasTempo) {
-            drawLine(DjColors.good, Offset((a.mixInSec / dur * w).toFloat(), 0f), Offset((a.mixInSec / dur * w).toFloat(), waveH), strokeWidth = 2f)
-            drawLine(DjColors.warn, Offset((a.mixOutSec / dur * w).toFloat(), 0f), Offset((a.mixOutSec / dur * w).toFloat(), waveH), strokeWidth = 2f)
-        }
-    }
+/** "1 h 12 min" / "23 min" for the library total. */
+internal fun formatLong(sec: Double): String {
+    val m = (sec / 60).toInt()
+    return if (m >= 60) String.format(Locale.US, "%d h %02d min", m / 60, m % 60) else String.format(Locale.US, "%d min", m.coerceAtLeast(1))
 }

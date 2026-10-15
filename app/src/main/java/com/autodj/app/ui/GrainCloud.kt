@@ -22,7 +22,7 @@ import kotlin.math.sin
  */
 @Composable
 fun GrainCloud(viz: GrainVizSnapshot, selectedVoice: Int, modifier: Modifier = Modifier) {
-    val bg = Palette.screen
+    val bg = com.autodj.app.design.Ds.c.screen
     Canvas(
         modifier
             .fillMaxWidth()

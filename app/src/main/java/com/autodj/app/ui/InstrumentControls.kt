@@ -2,7 +2,18 @@ package com.autodj.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.widthIn
+import com.autodj.app.design.AutoDjShape
+import com.autodj.app.design.AutoDjSpace
+import com.autodj.app.design.Btn
+import com.autodj.app.design.Display
+import androidx.compose.foundation.layout.fillMaxSize
+import com.autodj.app.design.Segment
+import com.autodj.app.design.Tile
+import com.autodj.app.design.TileTitle
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -20,7 +31,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -195,12 +205,10 @@ fun Knob(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Segmented control, stepper, pads, envelope selector
+// Segmented control, stepper, pads, envelope selector (all on the components of the design language)
 // ---------------------------------------------------------------------------------------------------------------
 
-private val PillShape = RoundedCornerShape(10.dp)
-
-/** Pill with 2-4 options; the selected one sits on a slightly darker plate. */
+/** 2-4 options with a sliding fill; [selected] < 0 shows them as plain buttons (none chosen, e.g. a loaded song is the source). */
 @Composable
 fun Segmented(
     options: List<String>,
@@ -209,20 +217,13 @@ fun Segmented(
     modifier: Modifier = Modifier,
     help: String? = null,
 ) {
-    Row(modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape).then(if (help != null) Modifier.helpText(help) else Modifier)) {
-        options.forEachIndexed { i, text ->
-            val on = i == selected
-            Box(
-                Modifier
-                    .heightIn(min = 40.dp)
-                    .background(if (on) Palette.bodySunken else Color.Transparent)
-                    .clickable(role = Role.RadioButton) { onSelect(i) }
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text, color = if (on) Palette.ink else Palette.muted, fontSize = 14.sp)
-            }
+    val m = modifier.then(if (help != null) Modifier.helpText(help) else Modifier)
+    if (selected < 0) {
+        Row(m, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            options.forEachIndexed { i, text -> Btn(text, onClick = { onSelect(i) }, small = true) }
         }
+    } else {
+        Segment(options, selected, onSelect, m)
     }
 }
 
@@ -230,32 +231,18 @@ fun Segmented(
 @Composable
 fun Stepper(text: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier, help: String? = null) {
     Row(
-        modifier.clip(PillShape).border(1.dp, Palette.outline, PillShape).then(if (help != null) Modifier.helpText(help) else Modifier),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier.then(if (help != null) Modifier.helpText(help) else Modifier),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(Modifier.heightIn(min = 40.dp).clickable(role = Role.Button, onClickLabel = "previous") { onPrev() }.padding(horizontal = 12.dp), Alignment.Center) {
-            Text("‹", color = Palette.muted, fontSize = 18.sp)
-        }
-        Box(Modifier.width(52.dp), Alignment.Center) { Text(text, color = Palette.ink, fontSize = 14.sp) }
-        Box(Modifier.heightIn(min = 40.dp).clickable(role = Role.Button, onClickLabel = "next") { onNext() }.padding(horizontal = 12.dp), Alignment.Center) {
-            Text("›", color = Palette.muted, fontSize = 18.sp)
-        }
+        Btn("‹", onClick = onPrev, small = true, modifier = Modifier.width(36.dp), description = "zurück")
+        Txt(text, style = AutoDjType.body, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 44.dp), maxLines = 1)
+        Btn("›", onClick = onNext, small = true, modifier = Modifier.width(36.dp), description = "weiter")
     }
 }
 
 @Composable
-fun OutlinedPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, help: String? = null) {
-    Box(
-        modifier
-            .then(if (help != null) Modifier.helpText(help) else Modifier)
-            .heightIn(min = 40.dp)
-            .clip(PillShape)
-            .background(if (selected) Palette.bodySunken else Color.Transparent)
-            .border(1.dp, Palette.outline, PillShape)
-            .clickable(role = Role.Button) { onClick() }
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(text, color = if (selected) Palette.ink else Palette.muted, fontSize = 14.sp) }
+fun OutlinedPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, help: String? = null, small: Boolean = false, primary: Boolean = false) {
+    Btn(text, onClick = onClick, on = selected, primary = primary, small = small, modifier = modifier.then(if (help != null) Modifier.helpText(help) else Modifier))
 }
 
 /** Dark key for one cell. Calls [onPress] on touch-down and [onRelease] on lift/cancel. */
@@ -264,11 +251,13 @@ fun PadKey(label: String, active: Boolean, onPress: () -> Unit, onRelease: () ->
     var down by remember { mutableStateOf(false) }
     val press by rememberUpdatedState(onPress)
     val release by rememberUpdatedState(onRelease)
+    val c = Ds.c
+    val fill by animateColorAsState(if (down || active) c.ink2 else c.ink, tween(AutoDjMotion.ms(if (down) AutoDjMotion.instant else AutoDjMotion.fast)), label = "padkey")
     Box(
         modifier
-            .height(46.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (down || active) Palette.padActive else Palette.pad)
+            .height(AutoDjSpace.control)
+            .clip(AutoDjShape)
+            .background(fill)
             .semantics {
                 role = Role.Button
                 contentDescription = "cell $label"
@@ -285,45 +274,43 @@ fun PadKey(label: String, active: Boolean, onPress: () -> Unit, onRelease: () ->
                 }
             },
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (down || active) Palette.ink else Palette.padText, fontSize = 13.sp) }
+    ) { Txt(label, style = AutoDjType.small, color = c.onInk, maxLines = 1) }
 }
 
-/** Shape picker for the grain envelope: drawing of the current shape with ‹ › arrows. */
+/**
+ * Shape picker for the grain envelope: a tile with a display that shows the current shape (a tap on it, or ‹ ›, picks the next), and
+ * [below] for whatever belongs to the same tile.
+ */
 @Composable
-fun EnvelopeSelector(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, help: String? = null) {
+fun EnvelopeSelector(
+    names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, help: String? = null,
+    below: @Composable ColumnScope.() -> Unit = {},
+) {
     val count = names.size.coerceAtLeast(1)
-    val shape = RoundedCornerShape(14.dp)
-    Row(
-        modifier.clip(shape).border(1.dp, Palette.outline, shape).then(if (help != null) Modifier.helpText(help) else Modifier).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = "previous shape") { onSelect((selected + count - 1) % count) }.padding(horizontal = 12.dp), Alignment.Center) {
-            Text("‹", color = Palette.muted, fontSize = 20.sp)
+    val c = Ds.c
+    Tile(modifier.then(if (help != null) Modifier.helpText(help) else Modifier)) {
+        TileTitle("Hüllkurve") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Txt(names.getOrElse(selected) { "" }.lowercase(), style = AutoDjType.small, second = true, modifier = Modifier.padding(end = 6.dp))
+                Btn("‹", onClick = { onSelect((selected + count - 1) % count) }, small = true, modifier = Modifier.width(36.dp), description = "vorige Form")
+                Btn("›", onClick = { onSelect((selected + 1) % count) }, small = true, modifier = Modifier.width(36.dp), description = "nächste Form")
+            }
         }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Canvas(Modifier.fillMaxWidth().height(40.dp).padding(top = 8.dp, bottom = 2.dp, start = 8.dp, end = 8.dp)) {
+        Display(Modifier.fillMaxWidth().padding(top = 12.dp).height(80.dp).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.Button) { onSelect((selected + 1) % count) }) {
+            Canvas(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 val path = Path()
-                val n = 64
+                val n = 96
                 for (i in 0..n) {
                     val x = i / n.toFloat()
                     val px = x * size.width
                     val py = size.height * (1f - envelopeShape(selected, x))
                     if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
                 }
-                drawPath(path, Palette.ink, style = Stroke(width = 2.2f * density, cap = StrokeCap.Round))
+                drawPath(path, c.screenInk, style = Stroke(width = 2f * density, cap = StrokeCap.Round))
             }
-            Text(names.getOrElse(selected) { "" }.lowercase(), color = Palette.muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
         }
-        Box(Modifier.heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = "next shape") { onSelect((selected + 1) % count) }.padding(horizontal = 12.dp), Alignment.Center) {
-            Text("›", color = Palette.muted, fontSize = 20.sp)
-        }
+        Column(Modifier.padding(top = 12.dp), content = below)
     }
-}
-
-/** Thin vertical divider between knob groups. */
-@Composable
-fun GroupDivider(modifier: Modifier = Modifier) {
-    Box(modifier.width(1.dp).heightIn(min = 96.dp).background(Palette.outline.copy(alpha = 0.7f)))
 }
 
 @Composable

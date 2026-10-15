@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.Density
 import com.autodj.app.ui.AutoDjTheme
 import com.autodj.app.ui.FakeInstrumentHost
 import com.autodj.app.ui.InstrumentScreen
-import com.autodj.app.ui.Palette
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test

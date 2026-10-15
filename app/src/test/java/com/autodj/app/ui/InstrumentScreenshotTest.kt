@@ -60,8 +60,9 @@ class InstrumentScreenshotTest {
     }
 
     private fun show(host: InstrumentHost) {
+        com.autodj.app.installAutoDjFonts()
         compose.setContent {
-            AutoDjTheme { Box(Modifier.fillMaxSize().background(Palette.body)) { InstrumentScreen(host) } }
+            AutoDjTheme { Box(Modifier.fillMaxSize().background(com.autodj.app.design.Ds.c.ground)) { InstrumentScreen(host) } }
         }
         compose.waitForIdle()
     }
@@ -118,11 +119,11 @@ class InstrumentScreenshotTest {
     @Test fun loadFileButtonOpensTheChooserAndShowsProgress() {
         val host = FakeInstrumentHost()
         show(host)
-        compose.onNodeWithText("+ Datei laden").performClick()
+        compose.onNodeWithText("Datei laden").performClick()
         assertTrue(host.log.contains("loadFiles"))
         host.loadStatus = "Analysiere song.mp3 … 40 %"
         compose.waitForIdle()
-        compose.onNodeWithText("⟳ Analysiere song.mp3 … 40 %").assertExists()
+        compose.onNodeWithText("Analysiere song.mp3 … 40 %").assertExists()
     }
 
     @Test fun beatGridPresetsAndTapsProgramThePattern() {
@@ -169,7 +170,7 @@ class InstrumentScreenshotTest {
         assertEquals("one grain per step: the length of a 1/8 step at 120 bpm", 250f, host.value("granular.v0.size_ms"), 1f)
         assertEquals("playing", 1f, host.value("granular.v0.gate"), 0f)
         assertTrue(host.sentPatterns.last().second != 0)
-        compose.onAllNodesWithText("■ Stopp")[0].performClick()
+        compose.onAllNodesWithText("Stopp")[0].performClick()
         assertEquals(0f, host.value("granular.v0.gate"), 0f)
     }
 

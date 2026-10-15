@@ -11,13 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.height
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableStateOf
+import com.autodj.app.design.*
+import com.autodj.app.ui.dj.clockInfo
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,14 +45,24 @@ import com.autodj.app.ui.dj.MixScreen
 import com.autodj.app.ui.dj.PadsScreen
 import java.util.Locale
 
-private enum class Tab(val label: String, val glyph: String) {
-    Library("Bibliothek", "≣"),
-    Mix("Auto-Mix", "⇄"),
-    Decks("Decks", "◉"),
-    Effects("Effekte", "✦"),
-    Pads("Pads", "▦"),
-    Granular("Granular", "◌"),
-    Debug("Entwickler", "⚙"),
+private enum class Tab { Library, Mix, Decks, Effects, Pads, Granular, Debug }
+
+/** Phone navigation labels (the same six pages as on the desktop, short names). */
+private val NavLabels = listOf("Songs", "Mix", "Decks", "FX", "Pads", "Granular")
+
+/** The page behind "Mehr": guide, day or night, calm motion, developer tools. */
+@Composable
+private fun MoreTile(onGuide: () -> Unit, onDeveloper: () -> Unit, modifier: Modifier = Modifier) {
+    Tile(modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Segment(listOf("Tag", "Nacht"), if (Ds.night) 1 else 0, { Ds.night = it == 1 })
+            Btn("Bewegung reduzieren", onClick = { Ds.reduceMotion = !Ds.reduceMotion }, on = Ds.reduceMotion, style = AutoDjType.small)
+        }
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Btn("Anleitung", onClick = onGuide)
+            Btn("Entwickler", onClick = onDeveloper)
+        }
+    }
 }
 
 @Composable
@@ -63,25 +77,32 @@ fun AutoDjApp(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val guide = remember { GuideState(guideSeen, onGuideSeen) }
     var beatRequest by rememberSaveable { mutableIntStateOf(0) }
+    var more by rememberSaveable { mutableStateOf(false) }
     CompositionLocalProvider(LocalGuide provides guide) {
     Box(Modifier.fillMaxSize()) {
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TopBar(vm, onGuide = { guide.show() }) },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                Tab.entries.forEachIndexed { i, t ->
-                    NavigationBarItem(
-                        selected = tab == i,
-                        onClick = { tab = i },
-                        icon = { Text(t.glyph, fontSize = 20.sp) },
-                        label = { Text(t.label) },
-                    )
+    Column(Modifier.fillMaxSize().background(Ds.c.ground).statusBarsPadding()) {
+        val (bpm, _) = clockInfo(vm.dj)
+        PhoneTopBar(
+            bpm, audioOn = vm.running, onAudio = { vm.toggleAudio() },
+            modifier = Modifier.padding(AutoDjSpace.phoneMargin),
+            trailing = { Btn(if (more) "Weniger" else "Mehr", onClick = { more = !more }, on = more, modifier = Modifier.height(48.dp)) },
+        )
+        Column(Modifier.animateContentSize(tween(AutoDjMotion.ms(AutoDjMotion.base), easing = AutoDjMotion.out))) {
+            if (more) MoreTile(
+                onGuide = { more = false; guide.show() },
+                onDeveloper = { more = false; tab = Tab.Debug.ordinal },
+                modifier = Modifier.padding(horizontal = AutoDjSpace.phoneMargin).padding(bottom = AutoDjSpace.phoneGap),
+            )
+            vm.message?.let { msg ->
+                Tile(Modifier.fillMaxWidth().padding(horizontal = AutoDjSpace.phoneMargin).padding(bottom = AutoDjSpace.phoneGap), padding = 10.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Txt(msg, style = AutoDjType.small, modifier = Modifier.weight(1f))
+                        Btn("OK", onClick = { vm.message = null }, small = true)
+                    }
                 }
             }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             when (Tab.entries[tab]) {
                 Tab.Library -> LibraryScreen(
                     vm.dj,
@@ -106,6 +127,13 @@ fun AutoDjApp(
                 )
                 Tab.Debug -> DeveloperTools(vm)
             }
+        }
+        if (tab == Tab.Debug.ordinal) {
+            Tile(Modifier.fillMaxWidth().navigationBarsPadding().padding(AutoDjSpace.phoneMargin), padding = 8.dp) {
+                Btn("Zurück zur App", onClick = { tab = Tab.Library.ordinal }, modifier = Modifier.fillMaxWidth())
+            }
+        } else {
+            PhoneBottomNav(NavLabels, tab, { tab = it }, Modifier.navigationBarsPadding().padding(AutoDjSpace.phoneMargin))
         }
     }
     GuideOverlay(guide, onAction = { target ->
@@ -152,58 +180,5 @@ private fun DeveloperTools(vm: AutoDjViewModel) {
                 else -> TransportScreen(vm)
             }
         }
-    }
-}
-
-@Composable
-private fun TopBar(vm: AutoDjViewModel, onGuide: () -> Unit) {
-    Column(Modifier.statusBarsPadding().background(MaterialTheme.colorScheme.background)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Button(
-                onClick = { vm.toggleAudio() },
-                colors = if (vm.running) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
-            ) { Text(if (vm.running) "Stop audio" else "Start audio") }
-            DebugChip(vm)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = onGuide) { Text("? Anleitung") }
-        }
-        vm.message?.let { msg ->
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant).padding(start = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(msg, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { vm.message = null }) { Text("OK") }
-            }
-        }
-    }
-}
-
-/** Always-visible health chip: CPU load of the audio callback, xruns, active grains, adaptive-quality level, latency. */
-@Composable
-private fun DebugChip(vm: AutoDjViewModel) {
-    val s = vm.status
-    val d = vm.driver
-    val load = s.load
-    val color = when {
-        !vm.running -> Palette.muted
-        load < 0.5f && s.qualityLevel == 0 -> Palette.good
-        load < 0.8f -> Palette.warn
-        else -> Palette.bad
-    }
-    val lat = if (d.latencyMs >= 0) String.format(Locale.US, "%.0f ms", d.latencyMs) else "-"
-    Box(
-        Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            String.format(Locale.US, "CPU %.0f%% · xr %d · %d gr · Q%d · %s", 100 * load, s.xruns + s.deadlineMisses, s.activeGrains, s.qualityLevel, lat),
-            color = color,
-            fontSize = 12.sp,
-        )
     }
 }

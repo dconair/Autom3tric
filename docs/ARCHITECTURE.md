@@ -111,7 +111,7 @@ der Referenz unbekannt ist (z. B. wie ihr „Chaos“ klingt), ist unten als **e
 | 8 oder 16 Zellen mit Pads | `cell_count`, `PadKey` (Name der Taste ab C3) | dito |
 | Regler: space, chaos \| length, **grains**, position \| tune, output | `spread`, `granular.chaos`, `size_ms`, `density` (frei) bzw. `sync_div` (Sync), `position`, `pitch_st` (rastet auf Halbtöne), `granular.output_db`; der große Regler wechselt zwischen Dichte und Taktteilung je nach sync/free | `InstrumentScreen.kt` |
 | Hüllkurven-Auswahl mit Pfeilen | `EnvelopeSelector` zeichnet die Form; 6 Formen, die Zeichnung nutzt dieselbe Formel wie `EnvelopeTables` (Test) | `InstrumentControls.kt` |
-| Zurückhaltende Anmutung (warmes Beige, dunkle Knöpfe, Kleinschreibung) | eigene Palette in `Theme.kt`; Knobs: Ziehen = ändern, Doppeltippen = Default, TalkBack-Aktion „Fortschritt setzen“ | `Theme.kt`, `Knob` |
+| Zurückhaltende Anmutung (warmes Beige, dunkle Knöpfe, Kleinschreibung) | Designsprache in `app/.../design/` (Tokens, Komponenten, Puls; Vorlage `docs/design/DESIGN.md`), kleine Hanken-Grotesk-Schrift; Knobs: Ziehen = ändern, Doppeltippen = Default, TalkBack-Aktion „Fortschritt setzen“ | `design/`, `Knob` |
 | „Chaos“-Regler | **Eigene Interpretation:** ein Makro, das von kurzem Hall über Hall+Flanger zu überwiegend Flanger überblendet (`ChaosFx`) | `native/fx` |
 
 Bewusst noch nicht dabei: Drag-and-drop/Import eigener Dateien (kommt mit M3, bis dahin vier synthetische Quellen), Modulations-Matrix

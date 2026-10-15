@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import com.autodj.app.design.AutoDjSpace
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Btn
+import com.autodj.app.design.Tile
+import com.autodj.app.design.Txt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
@@ -24,10 +31,8 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.autodj.app.audio.GrainVizSnapshot
 import com.autodj.app.dj.GranularPattern
 import com.autodj.app.audio.SourceInfo
@@ -138,9 +143,9 @@ fun formatSemitones(v: Float) = String.format(Locale.US, "%+d st", v.roundToInt(
 fun formatDb(v: Float) = String.format(Locale.US, "%+.1f dB", v)
 
 /**
- * The granular instrument: a header with "load a file" and the guide, the dark screen (touch = play), mode row (hold / step /
- * keys), cell pads, the beat builder (step mode), grain envelope and the nine controls: space, chaos | length, GRAINS, position |
- * tune, output (+ sync/free above the big knob). The line at the bottom explains whatever was touched last.
+ * The granular instrument on the board of the design language: the dark display (touch = play) next to the control tile (mode,
+ * cells, play) and the envelope tile (shape, voice, source); in step mode the beat builder; at the bottom one tile with the knobs:
+ * space, chaos | length, GRAINS, position | tune, output. The line at the very bottom explains whatever was touched last.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -148,7 +153,7 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShow
     val voice = host.selectedVoice
     val p = InstrumentParams.of(host, voice)
     if (p == null) {
-        Text("Parameter registry does not match the instrument layout.", modifier.padding(16.dp))
+        Txt("Parameter registry does not match the instrument layout.", modifier.padding(16.dp))
         return
     }
     val help = remember { HelpState(InstrumentHelp.Start) }
@@ -181,34 +186,19 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShow
         start()
     }
 
-    val header: @Composable () -> Unit = {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.widthIn(max = 460.dp)) {
-                    Text("Granular-Plugin", color = Palette.ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Zerlegt Musik in winzige Schnipsel („Körner“) und lässt dich damit spielen. So geht es: Datei laden, auf die Welle tippen, an den Reglern drehen.",
-                        color = Palette.muted, fontSize = 12.sp, lineHeight = 16.sp,
-                    )
-                }
-                if (host.canLoadFiles) {
-                    OutlinedPill("+ Datei laden", onClick = { host.loadFiles() }, selected = true, help = InstrumentHelp.Load)
-                }
-                if (onShowGuide != null) OutlinedPill("? Anleitung", onClick = onShowGuide)
-            }
+    val actions: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (host.canLoadFiles) Btn("Datei laden", onClick = { host.loadFiles() }, small = true, modifier = Modifier.helpText(InstrumentHelp.Load))
             val status = host.loadStatus
-            if (status != null) {
-                Text("⟳ $status", color = Palette.copper, fontSize = 13.sp)
-            } else if (!userSource && host.canLoadFiles) {
-                Text(
-                    if (host.canDropFiles) "Du hörst gerade einen eingebauten Klang. Eigene Musik: „+ Datei laden“ drücken oder eine Datei ins Fenster ziehen."
-                    else "Du hörst gerade einen eingebauten Klang. Eigene Musik: „+ Datei laden“ drücken.",
-                    color = Palette.muted, fontSize = 12.sp,
-                )
-            }
+            Txt(
+                when {
+                    status != null -> status
+                    !userSource && host.canLoadFiles -> if (host.canDropFiles) "Eingebauter Klang. Eigene Musik: Datei laden oder ins Fenster ziehen." else "Eingebauter Klang. Eigene Musik: Datei laden."
+                    else -> ""
+                },
+                style = AutoDjType.small, second = true, maxLines = 1, modifier = Modifier.weight(1f),
+            )
+            if (onShowGuide != null) Btn("Anleitung", onClick = onShowGuide, small = true)
         }
     }
     val screen: @Composable (Modifier) -> Unit = { m ->
@@ -217,62 +207,53 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShow
             onTouch = ::touch, onRelease = ::stop, modifier = m.helpText(InstrumentHelp.Screen),
         )
     }
-    val modeRow: @Composable () -> Unit = {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val controls: @Composable (Boolean) -> Unit = { wide ->
+        Tile(Modifier.fillMaxWidth()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 Segmented(
                     listOf("hold", "step", "keys"), mode, { p.mode.set(it.toFloat()) },
                     help = "${InstrumentHelp.Hold}  ·  ${InstrumentHelp.Step}  ·  ${InstrumentHelp.Keys}",
                 )
                 Segmented(listOf("8", "16"), p.cellCount.index, { p.cellCount.set(it.toFloat()) }, help = InstrumentHelp.Cells)
-                if (mode == MODE_STEP) {
-                    OutlinedPill("reset", onClick = { host.resetSteps(voice) })
-                }
-                OutlinedPill(
-                    if (p.gate.value >= 0.5f) "■ Stopp" else "▶ Abspielen", onClick = { p.gate.set(if (p.gate.value >= 0.5f) 0f else 1f) },
-                    selected = p.gate.value >= 0.5f, help = InstrumentHelp.Play,
-                )
+                if (mode == MODE_STEP) OutlinedPill("reset", onClick = { host.resetSteps(voice) }, small = true)
+                val on = p.gate.value >= 0.5f
+                if (!(mode == MODE_STEP && host.pattern != null)) Btn(if (on) "Stopp" else "Abspielen", onClick = { p.gate.set(if (on) 0f else 1f) }, on = on, primary = !on, small = true, modifier = Modifier.helpText(InstrumentHelp.Play))
             }
-            Text(
+            Txt(
                 when (mode) {
                     MODE_HOLD -> "hold: eine Stelle der Datei festhalten. Ziehe auf der Welle."
-                    MODE_STEP -> "step: Datei in Stücke schneiden und im Takt abspielen. Das Muster baust du unten."
+                    MODE_STEP -> "step: Datei in Stücke schneiden und im Takt abspielen. Das Muster baust du im Raster."
                     else -> "keys: jede Taste spielt ein Stück der Datei."
                 },
-                color = Palette.muted, fontSize = 12.sp,
+                style = AutoDjType.small, second = true, modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
             )
-        }
-    }
-    val pads: @Composable () -> Unit = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.helpText(if (mode == MODE_KEYS) InstrumentHelp.Keys else InstrumentHelp.Cells)) {
-            for (row in 0 until n / 8) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (c in 0 until 8) {
-                        val i = row * 8 + c
-                        PadKey(
-                            cellNoteName(i), active = host.viz.cell[voice.coerceIn(0, 3)] == i,
-                            onPress = { pad(i) }, onRelease = ::stop, modifier = Modifier.weight(1f),
-                        )
+            val perRow = if (wide) 8 else 4
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.helpText(if (mode == MODE_KEYS) InstrumentHelp.Keys else InstrumentHelp.Cells)) {
+                for (row in 0 until n / perRow) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (c in 0 until perRow) {
+                            val i = row * perRow + c
+                            PadKey(
+                                cellNoteName(i), active = host.viz.cell[voice.coerceIn(0, 3)] == i,
+                                onPress = { pad(i) }, onRelease = ::stop, modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
         }
     }
     val envelope: @Composable () -> Unit = {
-        EnvelopeSelector(envNames, p.envShape.index, { p.envShape.set(it.toFloat()) }, Modifier.fillMaxWidth(), help = InstrumentHelp.Envelope)
-    }
-    val sources: @Composable () -> Unit = {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-            itemVerticalAlignment = Alignment.CenterVertically,
-        ) {
-            Segmented(listOf("1", "2", "3", "4"), voice, { host.selectedVoice = it }, help = InstrumentHelp.Voice)
-            val names = host.sourceNames
-            val builtIn = DemoSourceNames.size
-            Segmented(DemoSourceNames, if (slot < builtIn) slot else -1, { p.source.set(it.toFloat()) }, help = InstrumentHelp.Source)
-            for (i in builtIn until names.size) {
-                val label = names[i].let { if (it.length > 14) it.take(13) + "…" else it }
-                OutlinedPill(label, onClick = { p.source.set(i.toFloat()) }, selected = slot == i, help = InstrumentHelp.Source)
+        EnvelopeSelector(envNames, p.envShape.index, { p.envShape.set(it.toFloat()) }, Modifier.fillMaxWidth(), help = InstrumentHelp.Envelope) {
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                Segmented(listOf("1", "2", "3", "4"), voice, { host.selectedVoice = it }, help = InstrumentHelp.Voice)
+                val names = host.sourceNames
+                val builtIn = DemoSourceNames.size
+                Segmented(DemoSourceNames, if (slot < builtIn) slot else -1, { p.source.set(it.toFloat()) }, help = InstrumentHelp.Source)
+                for (i in builtIn until names.size) {
+                    val label = names[i].let { if (it.length > 14) it.take(13) + "…" else it }
+                    OutlinedPill(label, onClick = { p.source.set(i.toFloat()) }, selected = slot == i, small = true, help = InstrumentHelp.Source)
+                }
             }
         }
     }
@@ -284,59 +265,55 @@ fun InstrumentScreen(host: InstrumentHost, modifier: Modifier = Modifier, onShow
         Column(modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val wide = maxWidth >= 840.dp
-                val small = if (wide) 76.dp else 72.dp
-                val big = if (wide) 150.dp else 136.dp
+                val small = if (wide) 72.dp else 64.dp
+                val big = if (wide) 92.dp else 88.dp
+                val margin = if (wide) AutoDjSpace.margin else AutoDjSpace.phoneMargin
+                val gap = if (wide) AutoDjSpace.gap else AutoDjSpace.phoneGap
                 Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = margin),
+                    verticalArrangement = Arrangement.spacedBy(gap),
                 ) {
-                    header()
+                    actions()
                     if (wide) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            Column(Modifier.weight(1.25f)) { screen(Modifier.aspectRatio(1.75f)) }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                modeRow()
-                                pads()
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            Box(Modifier.weight(7f).fillMaxHeight().heightIn(min = 300.dp)) { screen(Modifier.fillMaxSize()) }
+                            Column(Modifier.weight(5f), verticalArrangement = Arrangement.spacedBy(gap)) {
+                                controls(true)
                                 envelope()
-                                sources()
                             }
                         }
                         beat()
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Top) {
+                        Tile(Modifier.fillMaxWidth(), padding = 20.dp) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                 SpaceKnob(p, small)
                                 ChaosKnob(p, small)
-                            }
-                            GroupDivider()
-                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Bottom) {
                                 LengthKnob(p, small)
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     SyncToggle(p)
                                     GrainsKnob(p, big)
                                 }
                                 PositionKnob(p, small)
-                            }
-                            GroupDivider()
-                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Top) {
                                 TuneKnob(p, small)
                                 OutputKnob(p, small)
                             }
                         }
                     } else {
-                        screen(Modifier.aspectRatio(1.8f))
-                        modeRow()
-                        pads()
+                        screen(Modifier.aspectRatio(1.7f))
+                        controls(false)
                         beat()
                         envelope()
-                        sources()
-                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SyncToggle(p)
-                            GrainsKnob(p, big)
+                        Tile(Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                SyncToggle(p)
+                                GrainsKnob(p, big)
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            SpacerRow { LengthKnob(p, small); PositionKnob(p, small); TuneKnob(p, small) }
+                            Spacer(Modifier.height(16.dp))
+                            SpacerRow { SpaceKnob(p, small); ChaosKnob(p, small); OutputKnob(p, small) }
                         }
-                        SpacerRow { LengthKnob(p, small); PositionKnob(p, small); TuneKnob(p, small) }
-                        SpacerRow { SpaceKnob(p, small); ChaosKnob(p, small); OutputKnob(p, small) }
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
             }
             HelpStrip(help)

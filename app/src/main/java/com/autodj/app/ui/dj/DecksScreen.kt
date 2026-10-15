@@ -66,7 +66,6 @@ import com.autodj.app.design.TileKind
 import com.autodj.app.design.Txt
 import com.autodj.app.design.riseIn
 import com.autodj.app.ui.Knob
-import com.autodj.app.ui.TabTip
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt

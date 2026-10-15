@@ -15,7 +15,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.autodj.app.dj.DjColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,7 +52,7 @@ class GuideTest {
         compose.setContent {
             AutoDjTheme {
                 CompositionLocalProvider(LocalGuide provides state) {
-                    Box(Modifier.fillMaxSize().background(DjColors.bg)) {
+                    Box(Modifier.fillMaxSize().background(com.autodj.app.design.Ds.c.ground)) {
                         TabTip("test", "Ein Hinweis im Reiter.")
                         GuideOverlay(state, onAction, phase = this@GuideTest.phase)
                     }

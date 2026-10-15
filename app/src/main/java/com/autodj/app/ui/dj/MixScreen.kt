@@ -1,6 +1,13 @@
 package com.autodj.app.ui.dj
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.Role
+import com.autodj.app.design.AutoDjMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,7 +84,7 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
             Row(Modifier.fillMaxSize().padding(horizontal = margin).padding(bottom = margin), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 Column(Modifier.weight(7f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AutoDjSpace.rowGap)) {
-                        mixRows(dj, mix, onGoToLibrary)
+                        mixRows(dj, mix, onGoToLibrary, wide = true)
                     }
                     ListActions(dj, mix)
                     val plan = mix.runningPlan ?: mix.plan
@@ -92,7 +99,7 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(horizontal = margin), verticalArrangement = Arrangement.spacedBy(gap)) {
                 item { RunTile(mix, Modifier.fillMaxWidth()) }
-                mixRows(dj, mix, onGoToLibrary)
+                mixRows(dj, mix, onGoToLibrary, wide = false)
                 item { ListActions(dj, mix) }
                 val plan = mix.runningPlan ?: mix.plan
                 if (plan != null) item { Timeline(plan, if (mix.state == MixState.Playing) mix.snapshot.plan.timeSec else null, Modifier.fillMaxWidth().height(130.dp)) }
@@ -106,7 +113,7 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
 
 // ---- list ---------------------------------------------------------------------------------------------------
 
-private fun LazyListScope.mixRows(dj: DjController, mix: MixController, onGoToLibrary: () -> Unit) {
+private fun LazyListScope.mixRows(dj: DjController, mix: MixController, onGoToLibrary: () -> Unit, wide: Boolean) {
     val plan = mix.runningPlan ?: mix.plan
     val from = if (mix.runningPlan != null) mix.runningFrom else 0
     val current = mix.currentIndex
@@ -137,7 +144,7 @@ private fun LazyListScope.mixRows(dj: DjController, mix: MixController, onGoToLi
                 TransitionRow(t, progress, running)
             }
             SongRow(
-                index = i, item = item, locked = mix.locked, playing = i == current,
+                index = i, wide = wide, item = item, locked = mix.locked, playing = i == current,
                 startsAt = if (plan != null && planIndex in plan.items.indices) plan.items[planIndex].startSec else null,
                 onUp = { mix.move(i, -1) }, onDown = { mix.move(i, 1) }, onRemove = { mix.removeAt(i) }, onPlayFromHere = { mix.start(i) },
                 canPlay = mix.state != MixState.Loading && mix.state != MixState.Stopping && mix.exportProgress == null,
@@ -148,13 +155,28 @@ private fun LazyListScope.mixRows(dj: DjController, mix: MixController, onGoToLi
 
 @Composable
 private fun SongRow(
-    index: Int, item: TrackItem?, locked: Boolean, playing: Boolean, startsAt: Double?, canPlay: Boolean,
+    index: Int, wide: Boolean, item: TrackItem?, locked: Boolean, playing: Boolean, startsAt: Double?, canPlay: Boolean,
     onUp: () -> Unit, onDown: () -> Unit, onRemove: () -> Unit, onPlayFromHere: () -> Unit,
 ) {
     val a = item?.analysis
     val c = Ds.c
-    Tile(Modifier.fillMaxWidth().height(AutoDjSpace.row), kind = if (playing) TileKind.Ink else TileKind.Plain, padding = 0.dp) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    var open by remember { mutableStateOf(false) }
+    val actions: @Composable () -> Unit = {
+        RowAction("▶\uFE0E", "Ab hier spielen", enabled = canPlay && item != null, onClick = onPlayFromHere)
+        RowAction("↑", "Nach oben", enabled = !locked && index > 0, onClick = onUp)
+        RowAction("↓", "Nach unten", enabled = !locked, onClick = onDown)
+        RowAction("✕", "Entfernen", enabled = !locked, onClick = onRemove)
+    }
+    Tile(
+        Modifier.fillMaxWidth().animateContentSize(tween(AutoDjMotion.ms(AutoDjMotion.base), easing = AutoDjMotion.out)),
+        kind = if (playing) TileKind.Ink else TileKind.Plain, padding = 0.dp,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(AutoDjSpace.row)
+                .then(if (wide) Modifier else Modifier.clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.Button) { open = !open })
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             if (playing) Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(c.accentLit))
             Column(Modifier.weight(1f)) {
                 Txt(item?.name ?: "(entfernt)", style = AutoDjType.row, maxLines = 1)
@@ -170,10 +192,10 @@ private fun SongRow(
                 Txt(if (a.hasTempo) String.format(Locale.US, "%.1f", a.bpm) else "–", style = AutoDjType.bodyMedium, maxLines = 1)
                 if (a.hasKey) KeyChip(a.camelot) else Box(Modifier.width(1.dp))
             }
-            RowAction("▶", "Ab hier spielen", enabled = canPlay && item != null, onClick = onPlayFromHere)
-            RowAction("↑", "Nach oben", enabled = !locked && index > 0, onClick = onUp)
-            RowAction("↓", "Nach unten", enabled = !locked, onClick = onDown)
-            RowAction("✕", "Entfernen", enabled = !locked, onClick = onRemove)
+            if (wide) actions()
+        }
+        if (!wide && open) {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
         }
     }
 }

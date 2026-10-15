@@ -8,7 +8,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
-import com.autodj.app.dj.DjColors
 import com.autodj.app.ui.AutoDjTheme
 import com.autodj.app.ui.GuideOverlay
 import com.autodj.app.ui.GuideState
@@ -27,7 +26,7 @@ class GuideDesktopTest {
         val scene = ImageComposeScene(width = 1100, height = 760, density = Density(1f)) {
             AutoDjTheme {
                 CompositionLocalProvider(LocalGuide provides state) {
-                    Box(Modifier.fillMaxSize().background(DjColors.bg)) { GuideOverlay(state, onAction = {}, phase = 0.7f) }
+                    Box(Modifier.fillMaxSize().background(com.autodj.app.design.Ds.c.ground)) { GuideOverlay(state, onAction = {}, phase = 0.7f) }
                 }
             }
         }

@@ -70,7 +70,7 @@ class LibraryScreenshotTest {
     private fun render(name: String, items: List<TrackItem>, width: Int, height: Int) {
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
             Themed {
-                LibraryContent(items, onPickFiles = {}, onDemo = {}, onRemove = {}, onLoadDeck = { _, _ -> }, onGranular = {}, onQueue = {})
+                LibraryContent(items, onPickFiles = {}, onDemo = {}, onRemove = {}, onLoadDeck = { _, _ -> }, onGranular = {}, onQueue = {}, initialSelected = "id1")
             }
         }
         try {
