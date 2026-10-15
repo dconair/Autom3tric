@@ -69,12 +69,12 @@ class LibraryScreenshotTest {
 
     private fun render(name: String, items: List<TrackItem>, width: Int, height: Int) {
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
-            Box(Modifier.fillMaxSize()) {
+            Themed {
                 LibraryContent(items, onPickFiles = {}, onDemo = {}, onRemove = {}, onLoadDeck = { _, _ -> }, onGranular = {}, onQueue = {})
             }
         }
         try {
-            val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+            val bytes = checkNotNull(scene.settled().encodeToData(EncodedImageFormat.PNG)).bytes
             val dir = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
             File(dir, "$name.png").writeBytes(bytes)
             assertTrue(bytes.size > 8_000, "render of $name looks blank (${bytes.size} bytes)")

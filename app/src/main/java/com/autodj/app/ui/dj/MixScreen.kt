@@ -1,33 +1,25 @@
 package com.autodj.app.ui.dj
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -36,17 +28,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.autodj.app.dj.DjColors
-import com.autodj.app.ui.TabTip
 import com.autodj.app.dj.DjController
-import com.autodj.app.dj.DjTheme
 import com.autodj.app.dj.LengthChoice
 import com.autodj.app.dj.MixController
 import com.autodj.app.dj.MixState
@@ -54,51 +45,60 @@ import com.autodj.app.dj.OrderChoice
 import com.autodj.app.dj.PlanInfo
 import com.autodj.app.dj.TrackItem
 import com.autodj.app.dj.TransitionChoice
-import com.autodj.app.dj.camelotColor
+import com.autodj.app.dj.TransitionInfoK
+import com.autodj.app.design.AutoDjSpace
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Btn
+import com.autodj.app.design.Display
+import com.autodj.app.design.Ds
+import com.autodj.app.design.KeyChip
+import com.autodj.app.design.ProgressBar
+import com.autodj.app.design.Segment
+import com.autodj.app.design.StatusKind
+import com.autodj.app.design.Tile
+import com.autodj.app.design.TileKind
+import com.autodj.app.design.Txt
+import com.autodj.app.design.riseIn
 import java.util.Locale
 
 /**
- * The Auto-Mix tab: put songs in a list, let the app plan the transitions, start the mix, tune it, export it.
+ * The Auto-Mix tab: put songs in a list, let the app plan the transitions, start the mix, tune it, export it. The list shows songs and,
+ * between them, the transition the planner chose; the timeline underneath shows both decks over the whole mix.
  * [onExport] opens the platform's "save as" dialog for the given bit depth and calls [MixController.export] with the path.
  */
 @Composable
 fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int) -> Unit, modifier: Modifier = Modifier) {
     val mix = dj.mix
-    DjTheme {
-        BoxWithConstraints(modifier.fillMaxSize().background(DjColors.bg)) {
-            val wide = maxWidth >= 860.dp
-            if (wide) {
-                Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TabTip(
-                            "mix", "Der Auto-Mix spielt die Liste nacheinander und blendet selbst über: Tempo und Takt werden angeglichen. Songs hinzufügen, ▶ drücken, fertig.",
-                            lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 1,
-                        )
-                        ListHeader(dj, mix, onGoToLibrary, narrow = false)
-                        LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) { mixRows(dj, mix) }
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val wide = maxWidth >= 860.dp
+        val margin = if (wide) AutoDjSpace.margin else AutoDjSpace.phoneMargin
+        val gap = if (wide) AutoDjSpace.gap else AutoDjSpace.phoneGap
+        if (wide) {
+            Row(Modifier.fillMaxSize().padding(horizontal = margin).padding(bottom = margin), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                Column(Modifier.weight(7f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AutoDjSpace.rowGap)) {
+                        mixRows(dj, mix, onGoToLibrary)
                     }
-                    Column(Modifier.width(360.dp).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TransportPanel(mix)
-                        OptionsPanel(mix)
-                        ExportPanel(mix, onExport)
-                    }
+                    ListActions(dj, mix)
+                    val plan = mix.runningPlan ?: mix.plan
+                    if (plan != null) Timeline(plan, if (mix.state == MixState.Playing) mix.snapshot.plan.timeSec else null, Modifier.fillMaxWidth().height(150.dp))
                 }
-            } else {
-                LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    item { Spacer(Modifier.height(2.dp)) }
-                    item {
-                        TabTip(
-                            "mix", "Der Auto-Mix spielt die Liste nacheinander und blendet selbst über. Songs hinzufügen, ▶ drücken, fertig.",
-                            lesson = com.autodj.app.ui.Guides.AUTO_DJ, step = 1,
-                        )
-                    }
-                    item { TransportPanel(mix) }
-                    item { ListHeader(dj, mix, onGoToLibrary, narrow = true) }
-                    mixRows(dj, mix)
-                    item { OptionsPanel(mix) }
-                    item { ExportPanel(mix, onExport) }
-                    item { Spacer(Modifier.height(12.dp)) }
+                Column(Modifier.weight(5f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    RunTile(mix, Modifier.fillMaxWidth().riseIn(0))
+                    OptionsTile(mix, Modifier.fillMaxWidth().riseIn(1))
+                    ExportTile(mix, onExport, Modifier.fillMaxWidth().riseIn(2))
                 }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize().padding(horizontal = margin), verticalArrangement = Arrangement.spacedBy(gap)) {
+                item { RunTile(mix, Modifier.fillMaxWidth()) }
+                mixRows(dj, mix, onGoToLibrary)
+                item { ListActions(dj, mix) }
+                val plan = mix.runningPlan ?: mix.plan
+                if (plan != null) item { Timeline(plan, if (mix.state == MixState.Playing) mix.snapshot.plan.timeSec else null, Modifier.fillMaxWidth().height(130.dp)) }
+                item { OptionsTile(mix, Modifier.fillMaxWidth()) }
+                item { ExportTile(mix, onExport, Modifier.fillMaxWidth()) }
+                item { androidx.compose.foundation.layout.Spacer(Modifier.height(margin)) }
             }
         }
     }
@@ -106,60 +106,22 @@ fun MixScreen(dj: DjController, onGoToLibrary: () -> Unit, onExport: (bits: Int)
 
 // ---- list ---------------------------------------------------------------------------------------------------
 
-@Composable
-private fun ListHeader(dj: DjController, mix: MixController, onGoToLibrary: () -> Unit, narrow: Boolean) {
-    val total = mix.plan?.totalSec
-    val ready = dj.tracks.count { it.ready }
-    val title: @Composable (Modifier) -> Unit = { m ->
-        Column(m) {
-            Text("Auto-Mix", color = DjColors.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                when {
-                    mix.list.isEmpty() -> "Noch keine Songs in der Liste"
-                    total != null -> "${mix.list.size} Songs · ${formatTime(total)} Spielzeit"
-                    else -> "${mix.list.size} Songs"
-                },
-                color = DjColors.muted, fontSize = 13.sp,
-            )
-        }
-    }
-    val buttons: @Composable () -> Unit = {
-        OutlinedButton(onClick = { mix.addAll() }, enabled = !mix.locked && ready > 0 && mix.list.size < ready) {
-            Text("Alle Songs hinzufügen", color = DjColors.text, maxLines = 1)
-        }
-        TextButton(onClick = { mix.clear() }, enabled = !mix.locked && mix.list.isNotEmpty()) { Text("Leeren", color = DjColors.muted, maxLines = 1) }
-        TextButton(onClick = onGoToLibrary) { Text("Bibliothek", color = DjColors.deckA, maxLines = 1) }
-    }
-    if (narrow) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            title(Modifier)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { buttons() }
-        }
-    } else {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            title(Modifier.weight(1f))
-            buttons()
-        }
-    }
-}
-
-private fun LazyListScope.mixRows(dj: DjController, mix: MixController) {
+private fun LazyListScope.mixRows(dj: DjController, mix: MixController, onGoToLibrary: () -> Unit) {
     val plan = mix.runningPlan ?: mix.plan
     val from = if (mix.runningPlan != null) mix.runningFrom else 0
     val current = mix.currentIndex
     if (mix.list.isEmpty()) {
         item {
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DjColors.panel).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("Die Mix-Liste ist leer", color = DjColors.text, fontSize = 17.sp)
-                Text(
-                    "Füge Songs aus der Bibliothek hinzu („In die Mix-Liste“) oder nimm gleich alle. " +
-                        "Die App ordnet die Übergänge selbst: Tempo wird angeglichen, die Takte liegen aufeinander.",
-                    color = DjColors.muted, fontSize = 13.sp,
+            Tile(Modifier.fillMaxWidth().riseIn(0), padding = 24.dp) {
+                Txt(if (dj.tracks.any { it.ready }) "Noch keine Songs in der Liste" else "Noch keine Songs in der Bibliothek", style = AutoDjType.head)
+                Txt(
+                    "Füge Songs aus der Bibliothek hinzu oder nimm gleich alle. Die App ordnet die Übergänge selbst: Das Tempo wird angeglichen, die Takte liegen aufeinander.",
+                    style = AutoDjType.body, second = true, modifier = Modifier.padding(top = 8.dp),
                 )
-                Button(onClick = { mix.addAll() }, enabled = dj.tracks.any { it.ready }) { Text("Alle Songs aus der Bibliothek hinzufügen") }
+                Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Btn("Alle Songs hinzufügen", onClick = { mix.addAll() }, primary = true, enabled = dj.tracks.any { it.ready })
+                    Btn("Zur Bibliothek", onClick = onGoToLibrary)
+                }
             }
         }
         return
@@ -167,17 +129,14 @@ private fun LazyListScope.mixRows(dj: DjController, mix: MixController) {
     itemsIndexed(mix.list, key = { _, id -> id }) { i, id ->
         val item = dj.item(id)
         val planIndex = i - from
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(AutoDjSpace.rowGap)) {
             if (i > 0) {
                 val t = if (planIndex >= 1 && plan != null) plan.transitions.getOrNull(planIndex - 1) else null
-                TransitionStrip(
-                    if (t == null) null else "${t.label} · ${t.lengthBeats.toInt()} Beats" +
-                        (if (t.tempoRamp) String.format(Locale.US, " · %.0f → %.0f BPM", t.bpmFrom, t.bpmTo) else ""),
-                    t?.note,
-                    active = mix.state == MixState.Playing && mix.snapshot.plan.transition == planIndex - 1 && planIndex >= 1,
-                )
+                val running = mix.state == MixState.Playing && mix.snapshot.plan.transition == planIndex - 1 && planIndex >= 1
+                val progress = if (running && t != null && t.lengthSec > 0) ((mix.snapshot.plan.timeSec - t.startSec) / t.lengthSec).toFloat().coerceIn(0f, 1f) else 0f
+                TransitionRow(t, progress, running)
             }
-            MixRow(
+            SongRow(
                 index = i, item = item, locked = mix.locked, playing = i == current,
                 startsAt = if (plan != null && planIndex in plan.items.indices) plan.items[planIndex].startSec else null,
                 onUp = { mix.move(i, -1) }, onDown = { mix.move(i, 1) }, onRemove = { mix.removeAt(i) }, onPlayFromHere = { mix.start(i) },
@@ -188,192 +147,223 @@ private fun LazyListScope.mixRows(dj: DjController, mix: MixController) {
 }
 
 @Composable
-private fun TransitionStrip(text: String?, note: String?, active: Boolean) {
-    Row(Modifier.fillMaxWidth().padding(start = 40.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.width(3.dp).height(14.dp).background(if (active) DjColors.warn else DjColors.line))
-        Text(text ?: "…", color = if (active) DjColors.warn else DjColors.muted, fontSize = 12.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
-        if (!note.isNullOrEmpty()) Text(note, color = DjColors.muted.copy(alpha = 0.7f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun MixRow(
+private fun SongRow(
     index: Int, item: TrackItem?, locked: Boolean, playing: Boolean, startsAt: Double?, canPlay: Boolean,
     onUp: () -> Unit, onDown: () -> Unit, onRemove: () -> Unit, onPlayFromHere: () -> Unit,
 ) {
     val a = item?.analysis
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (playing) DjColors.panelRaised else DjColors.panel)
-            .border(1.dp, if (playing) DjColors.deckA else DjColors.line, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(if (playing) "▶" else "${index + 1}", color = if (playing) DjColors.deckA else DjColors.muted, fontSize = 14.sp, modifier = Modifier.width(22.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item?.name ?: "(entfernt)", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                buildString {
-                    if (a != null) append(formatTime(a.durationSec))
-                    if (startsAt != null) append(" · ab ").append(formatTime(startsAt))
-                },
-                color = DjColors.muted, fontSize = 11.sp,
-            )
-        }
-        if (a != null) {
-            if (a.hasKey) {
-                val c = camelotColor(a.camelot)
-                Text(a.camelot, color = c, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(if (a.hasTempo) String.format(Locale.US, "%.1f", a.bpm) else "–", color = DjColors.text, fontSize = 14.sp, modifier = Modifier.width(44.dp))
-        }
-        SmallButton("▶", enabled = canPlay && item != null, onClick = onPlayFromHere)
-        SmallButton("↑", enabled = !locked && index > 0, onClick = onUp)
-        SmallButton("↓", enabled = !locked, onClick = onDown)
-        SmallButton("✕", enabled = !locked, onClick = onRemove)
-    }
-}
-
-@Composable
-private fun SmallButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.width(30.dp).height(30.dp).clip(RoundedCornerShape(6.dp)).background(DjColors.panelRaised)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (enabled) DjColors.text else DjColors.line, fontSize = 14.sp) }
-}
-
-// ---- transport + timeline -------------------------------------------------------------------------------------
-
-@Composable
-private fun TransportPanel(mix: MixController) {
-    Panel {
-        val playing = mix.state == MixState.Playing
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (playing || mix.state == MixState.Stopping) {
-                Button(onClick = { mix.stop() }, enabled = mix.state == MixState.Playing, colors = ButtonDefaults.buttonColors(containerColor = DjColors.bad)) { Text("■  Stopp") }
-                OutlinedButton(onClick = { mix.skipToNext() }, enabled = playing && mix.currentIndex in 0 until mix.list.size - 1) { Text("Nächster Song", color = DjColors.text) }
-            } else {
-                Button(onClick = { mix.start(0) }, enabled = mix.list.isNotEmpty() && mix.state != MixState.Loading && mix.exportProgress == null) {
-                    Text(if (mix.state == MixState.Finished) "▶  Noch einmal" else "▶  Mix starten")
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            val s = mix.snapshot.plan
-            if (playing) {
-                Text("${formatTime(s.timeSec)} / ${formatTime(s.totalSec)}", color = DjColors.text, fontSize = 14.sp, maxLines = 1, softWrap = false)
-            }
-        }
-        when {
-            mix.state == MixState.Loading -> {
-                Text(mix.status ?: "Lade …", color = DjColors.muted, fontSize = 12.sp)
-                LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp), color = DjColors.deckA, trackColor = DjColors.line)
-            }
-            playing -> {
-                val s = mix.snapshot.plan
-                val total = if (s.totalSec > 0) s.totalSec else 1.0
-                LinearProgressIndicator(progress = { (s.timeSec / total).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp), color = DjColors.deckA, trackColor = DjColors.line)
-                val cur = mix.currentIndex
-                val name = mix.list.getOrNull(cur)?.let { id -> mix.runningPlan?.items?.getOrNull(cur - mix.runningFrom)?.name }
-                Text(
+    val c = Ds.c
+    Tile(Modifier.fillMaxWidth().height(AutoDjSpace.row), kind = if (playing) TileKind.Ink else TileKind.Plain, padding = 0.dp) {
+        Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (playing) Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(c.accentLit))
+            Column(Modifier.weight(1f)) {
+                Txt(item?.name ?: "(entfernt)", style = AutoDjType.row, maxLines = 1)
+                Txt(
                     buildString {
-                        if (name != null) append("Läuft: ").append(name)
-                        if (s.bpm > 0) append(String.format(Locale.US, "  ·  %.1f BPM", s.bpm))
-                        if (s.waiting >= 0) append("  ·  wartet auf den nächsten Song …")
+                        if (a != null) append(formatTime(a.durationSec))
+                        if (startsAt != null) append(" · ab ").append(formatTime(startsAt))
                     },
-                    color = DjColors.muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    style = AutoDjType.small, second = true, maxLines = 1,
                 )
             }
-            mix.state == MixState.Finished -> Text("Der Mix ist durchgelaufen.", color = DjColors.good, fontSize = 12.sp)
+            if (a != null) {
+                Txt(if (a.hasTempo) String.format(Locale.US, "%.1f", a.bpm) else "–", style = AutoDjType.bodyMedium, maxLines = 1)
+                if (a.hasKey) KeyChip(a.camelot) else Box(Modifier.width(1.dp))
+            }
+            RowAction("▶", "Ab hier spielen", enabled = canPlay && item != null, onClick = onPlayFromHere)
+            RowAction("↑", "Nach oben", enabled = !locked && index > 0, onClick = onUp)
+            RowAction("↓", "Nach unten", enabled = !locked, onClick = onDown)
+            RowAction("✕", "Entfernen", enabled = !locked, onClick = onRemove)
         }
-        val plan = mix.runningPlan ?: mix.plan
-        if (plan != null) {
-            Timeline(plan, if (playing) mix.snapshot.plan.timeSec else null, Modifier.fillMaxWidth().height(64.dp))
+    }
+}
+
+@Composable
+private fun RowAction(glyph: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Btn(glyph, onClick = onClick, enabled = enabled, small = true, modifier = Modifier.width(36.dp), description = description)
+}
+
+/** The transition between two songs: a quality square, the type, beats and tempo change, and the planner's reason. It fills while it runs. */
+@Composable
+private fun TransitionRow(t: TransitionInfoK?, progress: Float, running: Boolean) {
+    val c = Ds.c
+    Row(Modifier.fillMaxWidth().padding(start = 28.dp)) {
+        Box(Modifier.fillMaxWidth().height(44.dp).clip(com.autodj.app.design.AutoDjShape).background(c.tile2)) {
+            if (running) Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(c.tile3))
+            Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val kind = when {
+                    t == null -> StatusKind.Idle
+                    t.note.contains("nicht") -> StatusKind.Warn
+                    else -> StatusKind.Good
+                }
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(when (kind) { StatusKind.Good -> c.accent; StatusKind.Warn -> c.warn; StatusKind.Bad -> c.bad; StatusKind.Idle -> c.tile3 }))
+                if (t == null) {
+                    Txt("Wird geplant …", style = AutoDjType.small, second = true)
+                } else {
+                    Txt(t.label, style = AutoDjType.bodyMedium, maxLines = 1)
+                    Txt(
+                        "${t.lengthBeats.toInt()} Beats" + (if (t.tempoRamp) String.format(Locale.US, " · %.0f → %.0f BPM", t.bpmFrom, t.bpmTo) else ""),
+                        style = AutoDjType.small, maxLines = 1,
+                    )
+                    Box(Modifier.weight(1f))
+                    if (t.note.isNotEmpty()) Txt(t.note, style = AutoDjType.small, second = true, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListActions(dj: DjController, mix: MixController) {
+    val ready = dj.tracks.count { it.ready }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Btn("Alle Songs hinzufügen", onClick = { mix.addAll() }, primary = true, enabled = !mix.locked && ready > 0 && mix.list.size < ready)
+        Btn("Leeren", onClick = { mix.clear() }, enabled = !mix.locked && mix.list.isNotEmpty())
+    }
+}
+
+// ---- running, options, export -------------------------------------------------------------------------------
+
+/** The green tile: what runs, how long it is still, stop / next; before the start the big "Mix starten". */
+@Composable
+private fun RunTile(mix: MixController, modifier: Modifier) {
+    val playing = mix.state == MixState.Playing
+    val c = Ds.c
+    val s = mix.snapshot.plan
+    Tile(modifier, kind = TileKind.Accent) {
+        val cur = mix.currentIndex
+        val name = mix.list.getOrNull(cur)?.let { mix.runningPlan?.items?.getOrNull(cur - mix.runningFrom)?.name }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Txt(
+                    when {
+                        playing -> "Läuft"
+                        mix.state == MixState.Loading -> "Lädt"
+                        mix.state == MixState.Finished -> "Fertig"
+                        mix.list.isEmpty() -> "Bereit"
+                        else -> "${mix.list.size} Songs"
+                    },
+                    style = AutoDjType.small,
+                )
+                Txt(
+                    when {
+                        playing && name != null -> name
+                        mix.state == MixState.Loading -> mix.status ?: "Lade …"
+                        mix.state == MixState.Finished -> "Der Mix ist durchgelaufen"
+                        else -> mix.plan?.let { "${formatTime(it.totalSec)} Spielzeit" } ?: "Noch kein Mix"
+                    },
+                    style = AutoDjType.head, maxLines = 2,
+                )
+            }
+            if (playing) Txt(formatTime((s.totalSec - s.timeSec).coerceAtLeast(0.0)), style = AutoDjType.display, maxLines = 1)
+        }
+        if (playing || mix.state == MixState.Loading) {
+            val total = if (s.totalSec > 0) s.totalSec else 1.0
+            ProgressBar(
+                if (playing) (s.timeSec / total).toFloat() else 0f, Modifier.padding(top = 14.dp),
+                track = c.onAccent.copy(alpha = .25f), fill = c.onAccent,
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (playing || mix.state == MixState.Stopping) {
+                Btn("Stopp", onClick = { mix.stop() }, enabled = playing, on = false, danger = false)
+                Btn("Nächster Song", onClick = { mix.skipToNext() }, enabled = playing && mix.currentIndex in 0 until mix.list.size - 1)
+                Box(Modifier.weight(1f))
+                if (s.waiting >= 0) Txt("wartet auf den nächsten Song …", style = AutoDjType.small, maxLines = 1)
+                else mix.runningPlan?.transitions?.getOrNull(s.transition + 1)?.let { Txt("Übergang in ${formatTime((it.startSec - s.timeSec).coerceAtLeast(0.0))}", style = AutoDjType.small, maxLines = 1) }
+            } else {
+                Btn(
+                    if (mix.state == MixState.Finished) "Noch einmal" else "Mix starten", onClick = { mix.start(0) },
+                    enabled = mix.list.isNotEmpty() && mix.state != MixState.Loading && mix.exportProgress == null,
+                )
+            }
         }
         mix.error?.let { e ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(e, color = DjColors.warn, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { mix.error = null }) { Text("OK", color = DjColors.muted) }
+            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Txt(e, style = AutoDjType.small, modifier = Modifier.weight(1f))
+                Btn("OK", onClick = { mix.error = null }, small = true)
             }
         }
     }
 }
 
-/** Both decks as two lanes over the whole mix: song blocks, the overlaps highlighted, the playhead. */
+@Composable
+private fun OptionsTile(mix: MixController, modifier: Modifier) {
+    Tile(modifier) {
+        Txt("Übergänge", style = AutoDjType.lead)
+        Segment(
+            TransitionChoice.entries.map { it.label }, TransitionChoice.entries.indexOf(mix.transition),
+            { if (!mix.locked) mix.chooseTransition(TransitionChoice.entries[it]) }, Modifier.padding(top = 10.dp), compact = true,
+        )
+        Txt(mix.transition.hint + ".", style = AutoDjType.small, second = true, modifier = Modifier.padding(top = 8.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Txt("Länge", style = AutoDjType.lead, modifier = Modifier.weight(1f))
+            Segment(
+                LengthChoice.entries.map { it.label.removeSuffix(" Beats") }, LengthChoice.entries.indexOf(mix.length),
+                { if (!mix.locked && mix.transition != TransitionChoice.Cut) mix.chooseLength(LengthChoice.entries[it]) },
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Txt("Reihenfolge", style = AutoDjType.lead, modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val ok = !mix.locked && mix.list.size > 1
+                Btn("Passend", onClick = { mix.optimiseOrder(OrderChoice.Smart) }, enabled = ok, small = true)
+                Btn("Tempo ↑", onClick = { mix.optimiseOrder(OrderChoice.TempoUp) }, enabled = ok, small = true)
+                Btn("Tempo ↓", onClick = { mix.optimiseOrder(OrderChoice.TempoDown) }, enabled = ok, small = true)
+            }
+        }
+        Txt("Sortiert die Liste einmalig, danach änderst du sie von Hand.", style = AutoDjType.small, second = true, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+@Composable
+private fun ExportTile(mix: MixController, onExport: (Int) -> Unit, modifier: Modifier) {
+    var bits by remember { mutableIntStateOf(16) }
+    Tile(modifier) {
+        val p = mix.exportProgress
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Txt("Als Datei exportieren", style = AutoDjType.lead)
+                Txt("Rendert den ganzen Mix schneller als Echtzeit als WAV, dazu eine Tracklist mit Zeiten.", style = AutoDjType.small, second = true)
+            }
+            if (p == null) {
+                Segment(listOf("16 Bit", "24 Bit"), if (bits == 16) 0 else 1, { bits = if (it == 0) 16 else 24 }, small = true)
+                Btn("Exportieren", onClick = { onExport(bits) }, primary = true, enabled = mix.list.isNotEmpty() && !mix.locked)
+            }
+        }
+        if (p != null) {
+            ProgressBar(p, Modifier.padding(top = 12.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Txt(String.format(Locale.US, "%.0f %%", p * 100), style = AutoDjType.body, modifier = Modifier.weight(1f))
+                Btn("Abbrechen", onClick = { mix.cancelExport() }, small = true)
+            }
+        }
+        mix.exportResult?.let { Txt("Gespeichert: $it", style = AutoDjType.small, second = true, modifier = Modifier.padding(top = 8.dp)) }
+    }
+}
+
+// ---- timeline -----------------------------------------------------------------------------------------------
+
+/** Both decks as two lanes over the whole mix: song blocks in the decks' light colours, the overlaps as bands, the playhead. */
 @Composable
 private fun Timeline(plan: PlanInfo, now: Double?, modifier: Modifier) {
-    val total = plan.totalSec.coerceAtLeast(1.0)
-    BoxWithConstraints(modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF0A0B0D))) {
-        fun x(sec: Double): Dp = maxWidth * (sec / total).toFloat()
-        val laneH = (maxHeight - 6.dp) / 2
-        plan.transitions.forEach { t ->
-            Box(Modifier.offset(x = x(t.startSec)).width(x(t.lengthSec).coerceAtLeast(2.dp)).fillMaxHeight().background(DjColors.warn.copy(alpha = 0.16f)))
-        }
-        plan.items.forEach { it ->
-            val c = if (it.deck == 0) DjColors.deckA else DjColors.deckB
-            Box(
-                Modifier.offset(x = x(it.startSec), y = 2.dp + (laneH + 2.dp) * it.deck).width((x(it.endSec - it.startSec) - 1.dp).coerceAtLeast(1.dp)).height(laneH)
-                    .clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = 0.55f)),
-            ) { Text(it.name, color = Color.Black, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)) }
-        }
-        if (now != null) Box(Modifier.offset(x = x(now)).width(2.dp).fillMaxHeight().background(Color.White))
-    }
-}
-
-// ---- options + export ---------------------------------------------------------------------------------------
-
-@Composable
-private fun OptionsPanel(mix: MixController) {
-    Panel {
-        Text("Übergänge", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        ChipRow(TransitionChoice.entries, mix.transition, { it.label }, !mix.locked) { mix.chooseTransition(it) }
-        Text(mix.transition.hint, color = DjColors.muted, fontSize = 11.sp)
-        Text("Länge der Überblendung", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        ChipRow(LengthChoice.entries, mix.length, { it.label }, !mix.locked && mix.transition != TransitionChoice.Cut) { mix.chooseLength(it) }
-        Text("Reihenfolge optimieren", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        ChipRow(OrderChoice.entries, null, { it.label }, !mix.locked && mix.list.size > 1) { mix.optimiseOrder(it) }
-        Text("Sortiert die Liste einmalig; danach kannst du sie von Hand ändern.", color = DjColors.muted, fontSize = 11.sp)
-    }
-}
-
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun <T> ChipRow(options: List<T>, selected: T?, label: (T) -> String, enabled: Boolean, onSelect: (T) -> Unit) {
-    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        options.forEach { o ->
-            val on = o == selected
-            Box(
-                Modifier.clip(RoundedCornerShape(50)).background(if (on) DjColors.deckA.copy(alpha = 0.22f) else DjColors.panelRaised)
-                    .border(1.dp, if (on) DjColors.deckA else DjColors.line, RoundedCornerShape(50))
-                    .clickable(enabled = enabled, role = Role.RadioButton) { onSelect(o) }.padding(horizontal = 12.dp, vertical = 6.dp),
-            ) { Text(label(o), color = if (!enabled) DjColors.muted.copy(alpha = 0.5f) else if (on) DjColors.text else DjColors.muted, fontSize = 12.sp) }
-        }
-    }
-}
-
-@Composable
-private fun ExportPanel(mix: MixController, onExport: (Int) -> Unit) {
-    var bits by remember { mutableIntStateOf(16) }
-    Panel {
-        Text("Als Datei exportieren", color = DjColors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text("Rendert den ganzen Mix schneller als in Echtzeit in eine WAV-Datei, dazu eine Tracklist mit Zeiten.", color = DjColors.muted, fontSize = 11.sp)
-        val p = mix.exportProgress
-        if (p == null) {
-            ChipRow(listOf(16, 24), bits, { "$it Bit" }, true) { bits = it }
-            Button(onClick = { onExport(bits) }, enabled = mix.list.isNotEmpty() && !mix.locked) { Text("WAV exportieren …") }
-            mix.exportResult?.let { Text("Gespeichert: $it", color = DjColors.good, fontSize = 12.sp) }
-        } else {
-            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().height(4.dp), color = DjColors.deckA, trackColor = DjColors.line)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(String.format(Locale.US, "%.0f %%", p * 100), color = DjColors.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { mix.cancelExport() }) { Text("Abbrechen", color = DjColors.muted) }
+    val c = Ds.c
+    val measurer = rememberTextMeasurer()
+    Display(modifier) {
+        Canvas(Modifier.fillMaxSize()) {
+            val total = plan.totalSec.coerceAtLeast(1.0)
+            val pad = 12.dp.toPx()
+            val w = size.width - 2 * pad
+            val laneH = (size.height - 2 * pad - 8.dp.toPx()) / 2f
+            fun x(sec: Double) = pad + (sec / total * w).toFloat()
+            plan.transitions.forEach { t -> drawRect(c.screen3, Offset(x(t.startSec), 0f), Size((t.lengthSec / total * w).toFloat().coerceAtLeast(2f), size.height)) }
+            plan.items.forEach { it ->
+                val lit = if (it.deck == 0) c.deckALit else c.deckBLit
+                val y = pad + it.deck * (laneH + 8.dp.toPx())
+                drawRoundRect(lit, Offset(x(it.startSec), y), Size(((it.endSec - it.startSec) / total * w).toFloat().coerceAtLeast(2f), laneH), CornerRadius(3.dp.toPx()))
+                drawText(measurer, it.name, Offset(x(it.startSec) + 8.dp.toPx(), y + (laneH - 16.dp.toPx()) / 2f), TextStyle(fontFamily = AutoDjType.family, fontSize = 13.sp, color = Color(0xFF2A1D17)))
             }
+            if (now != null) drawRect(Color.White, Offset(x(now) - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
         }
     }
-}
-
-@Composable
-private fun Panel(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DjColors.panel).border(1.dp, DjColors.line, RoundedCornerShape(10.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp), content = content,
-    )
 }

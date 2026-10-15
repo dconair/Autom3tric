@@ -25,10 +25,10 @@ import kotlin.test.assertTrue
 class DesktopScreenshotTest {
     private fun render(name: String, host: FakeInstrumentHost, width: Int, height: Int) {
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
-            AutoDjTheme { Box(Modifier.fillMaxSize().background(Palette.body)) { InstrumentScreen(host) } }
+            Themed { InstrumentScreen(host) }
         }
         try {
-            val image = scene.render()
+            val image = scene.settled()
             val bytes = checkNotNull(image.encodeToData(EncodedImageFormat.PNG)).bytes
             val dir = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
             File(dir, "$name.png").writeBytes(bytes)

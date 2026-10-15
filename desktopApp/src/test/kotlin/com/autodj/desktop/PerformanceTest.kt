@@ -205,9 +205,9 @@ class PerformanceTest {
 
     @OptIn(ExperimentalComposeUiApi::class)
     private fun shot(content: @androidx.compose.runtime.Composable () -> Unit, name: String, width: Int, height: Int) {
-        val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { content() }
+        val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { Themed { content() } }
         try {
-            val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+            val bytes = checkNotNull(scene.settled().encodeToData(EncodedImageFormat.PNG)).bytes
             val out = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
             File(out, "$name.png").writeBytes(bytes)
             assertTrue(bytes.size > 8_000, "render of $name looks blank")

@@ -229,6 +229,8 @@ class Engine {
   std::uint32_t deadlineMisses_ = 0;
   std::uint64_t callbacks_ = 0;
   double bpmShown_ = 120.0;
+  double masterBeat_ = 0.0;      // MasterClock beat at the start of the last block (for the UI pulse)
+  bool masterFromMusic_ = false;
   std::atomic<std::uint32_t> xruns_{0};
 };
 

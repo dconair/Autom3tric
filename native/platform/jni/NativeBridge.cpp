@@ -213,16 +213,17 @@ JFN(jstring, nativeSourceInfo)(JNIEnv* env, jclass, jlong h, jint slot) {
 
 // ---- polling ----------------------------------------------------------------------------------
 
-/// out layout (18 doubles) is mirrored by EngineStatus.fromArray() in Kotlin.
+/// out layout (21 doubles) is mirrored by EngineStatus.fromArray() in Kotlin.
 JFN(jboolean, nativePollStatus)(JNIEnv* env, jclass, jlong h, jdoubleArray out) {
   autodj::EngineStatus s;
   if (!H(h)->engine->readStatus(s)) return JNI_FALSE;
-  const double v[18] = {s.load,        s.loadPeak,       s.lastBlockLoad, s.peakL,
+  const double v[21] = {s.load,        s.loadPeak,       s.lastBlockLoad, s.peakL,
                         s.peakR,       double(s.deadlineMisses), double(s.xruns), double(s.droppedGrains),
                         double(s.callbacks), s.clockBeat,  s.playBeat,      s.bpm,
                         double(s.playing), double(s.activeGrains), double(s.activeVoices), double(s.qualityLevel),
-                        double(s.callbackFrames), double(s.sampleRate)};
-  env->SetDoubleArrayRegion(out, 0, 18, v);
+                        double(s.callbackFrames), double(s.sampleRate),
+                        double(s.beatPhase), double(s.beatIndex), double(s.beatFromMusic)};
+  env->SetDoubleArrayRegion(out, 0, 21, v);
   return JNI_TRUE;
 }
 

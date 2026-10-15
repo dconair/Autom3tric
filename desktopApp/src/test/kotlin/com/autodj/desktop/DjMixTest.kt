@@ -203,10 +203,10 @@ class DjMixTest {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun shot(dj: DjController, name: String, width: Int, height: Int) {
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
-            MixScreen(dj, onGoToLibrary = {}, onExport = {})
+            Themed { MixScreen(dj, onGoToLibrary = {}, onExport = {}) }
         }
         try {
-            val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+            val bytes = checkNotNull(scene.settled().encodeToData(EncodedImageFormat.PNG)).bytes
             val out = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
             File(out, "$name.png").writeBytes(bytes)
             assertTrue(bytes.size > 8_000, "render of $name looks blank")
@@ -239,9 +239,9 @@ class DjMixTest {
 
     @OptIn(ExperimentalComposeUiApi::class)
     private fun shotDecks(dj: DjController, name: String, width: Int, height: Int) {
-        val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { DecksScreen(dj, onGoToLibrary = {}) }
+        val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) { Themed { DecksScreen(dj, onGoToLibrary = {}) } }
         try {
-            val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+            val bytes = checkNotNull(scene.settled().encodeToData(EncodedImageFormat.PNG)).bytes
             val out = File(System.getProperty("autodj.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
             File(out, "$name.png").writeBytes(bytes)
             assertTrue(bytes.size > 8_000, "render of $name looks blank")

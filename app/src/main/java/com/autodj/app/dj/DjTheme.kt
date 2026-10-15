@@ -1,45 +1,28 @@
 package com.autodj.app.dj
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import com.autodj.app.design.AutoDjDesignTheme
+import com.autodj.app.design.Ds
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-/** The dark "DJ" look of the library, decks and mix screens. The beige instrument screen keeps its own palette. */
+/** Old colour names of the DJ screens, mapped onto the roles of the design language (see design/Design.kt). New code uses `Ds.c`. */
 object DjColors {
-    val bg = Color(0xFF0E0F12)
-    val panel = Color(0xFF17191E)
-    val panelRaised = Color(0xFF1F2229)
-    val line = Color(0xFF2B2F38)
-    val text = Color(0xFFE7E8EC)
-    val muted = Color(0xFF8B909B)
-    val deckA = Color(0xFF4FC3F7)
-    val deckB = Color(0xFFF06292)
-    val good = Color(0xFF58C27D)
-    val warn = Color(0xFFE0A440)
-    val bad = Color(0xFFE5604D)
-    val wave = Color(0xFFB7BCC8)
+    val bg: Color get() = Ds.c.ground
+    val panel: Color get() = Ds.c.tile
+    val panelRaised: Color get() = Ds.c.tile2
+    val line: Color get() = Ds.c.tile3
+    val text: Color get() = Ds.c.ink
+    val muted: Color get() = Ds.c.ink2
+    val deckA: Color get() = Ds.c.deckAField
+    val deckB: Color get() = Ds.c.deckBField
+    val good: Color get() = Ds.c.accent
+    val warn: Color get() = Ds.c.warn
+    val bad: Color get() = Ds.c.bad
+    val wave: Color get() = Ds.c.screenInk
 }
-
-private val DjScheme = darkColorScheme(
-    primary = DjColors.deckA,
-    onPrimary = Color.Black,
-    secondary = DjColors.deckB,
-    onSecondary = Color.Black,
-    background = DjColors.bg,
-    onBackground = DjColors.text,
-    surface = DjColors.panel,
-    onSurface = DjColors.text,
-    surfaceVariant = DjColors.panelRaised,
-    onSurfaceVariant = DjColors.muted,
-    outline = DjColors.line,
-    error = DjColors.bad,
-)
 
 @Composable
-fun DjTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = DjScheme, content = content)
-}
+fun DjTheme(content: @Composable () -> Unit) = AutoDjDesignTheme(content)
 
 /** Camelot wheel colour: the number picks the hue, B (major) is lighter than A (minor). */
 fun camelotColor(camelot: String): Color {

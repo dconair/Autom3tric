@@ -22,10 +22,14 @@ data class EngineStatus(
     val qualityLevel: Int = 0,
     val callbackFrames: Int = 0,
     val sampleRate: Int = 48000,
+    /** Where the music is in its bar: phase inside the beat (0..1), beat 0..3, and whether a deck or the mix drives the clock. */
+    val beatPhase: Float = 0f,
+    val beatIndex: Int = 0,
+    val beatFromMusic: Boolean = false,
 ) {
     companion object {
         /** Length of the array filled by nativePollStatus. */
-        const val SIZE = 18
+        const val SIZE = 21
 
         fun fromArray(a: DoubleArray) = EngineStatus(
             load = a[0].toFloat(), loadPeak = a[1].toFloat(), lastBlockLoad = a[2].toFloat(),
@@ -34,6 +38,7 @@ data class EngineStatus(
             callbacks = a[8].toLong(), clockBeat = a[9], playBeat = a[10], bpm = a[11],
             playing = a[12] != 0.0, activeGrains = a[13].toInt(), activeVoices = a[14].toInt(),
             qualityLevel = a[15].toInt(), callbackFrames = a[16].toInt(), sampleRate = a[17].toInt(),
+            beatPhase = a[18].toFloat(), beatIndex = a[19].toInt(), beatFromMusic = a[20] != 0.0,
         )
     }
 }

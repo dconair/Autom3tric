@@ -146,6 +146,20 @@ TEST(Engine, StatusAndVisualisationSnapshotsArePublished) {
   }
 }
 
+TEST(Engine, StatusCarriesThePositionInTheBarForTheUiPulse) {
+  Engine e;
+  testutil::render(e, 60000);  // 1.25 s at 120 BPM and 48 kHz: 2.5 beats on the free-running clock
+  EngineStatus st;
+  ASSERT_TRUE(e.readStatus(st));
+  EXPECT_EQ(st.beatIndex, 2) << "beats 0,1,2 of the bar: the third beat is running";
+  EXPECT_NEAR(st.beatPhase, 0.5f, 0.03f);
+  EXPECT_EQ(st.beatFromMusic, 0) << "nothing plays: the clock is the free-running one";
+  testutil::render(e, 48000);  // 1 s later: 4.5 beats, which is the second half of beat 0 of the next bar
+  ASSERT_TRUE(e.readStatus(st));
+  EXPECT_EQ(st.beatIndex, 0);
+  EXPECT_NEAR(st.beatPhase, 0.5f, 0.03f);
+}
+
 TEST(Engine, TransportCommandsReachTheAudioThread) {
   Engine e;
   testutil::render(e, 24000);  // 0.5 s stopped: the clock free-runs, the play-head stays

@@ -36,7 +36,7 @@ class GuideDesktopTest {
             Guides.all.forEachIndexed { l, lesson ->
                 lesson.steps.indices.forEach { s ->
                     state.show(l, s)
-                    val bytes = checkNotNull(scene.render().encodeToData(EncodedImageFormat.PNG)).bytes
+                    val bytes = checkNotNull(scene.settled().encodeToData(EncodedImageFormat.PNG)).bytes
                     File(dir, "desktop_guide_${l}_$s.png").writeBytes(bytes)
                     assertTrue(bytes.size > 8_000, "guide $l/$s looks blank (${bytes.size} bytes)")
                 }

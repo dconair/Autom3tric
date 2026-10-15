@@ -1,6 +1,7 @@
 #include "autodj/engine/Engine.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <vector>
 
@@ -492,6 +493,8 @@ void Engine::processChunk(float* dst, int frames) noexcept {
   std::memset(dst, 0, floats * sizeof(float));
 
   const MasterClock mc = dj_->masterClock(t);
+  masterBeat_ = mc.beat;
+  masterFromMusic_ = mc.fromMusic;
   if (graph_) {
     for (int i = 0; i < graph_->count; ++i) {
       const GraphDesc::Entry& e = graph_->entries[i];
@@ -559,6 +562,14 @@ void Engine::publishStatus(int callbackFrames, float load, float blockLoad) noex
   s.clockBeat = transport_.clockBeat();
   s.playBeat = transport_.playBeat();
   s.bpm = bpmShown_;
+  {
+    // where the music is inside its bar: the UI pulses on this (phase inside the beat, beat 0..3 of the bar)
+    const double b = masterBeat_ < 0.0 ? 0.0 : masterBeat_;
+    const double whole = std::floor(b);
+    s.beatPhase = static_cast<float>(b - whole);
+    s.beatIndex = static_cast<std::int32_t>(static_cast<std::int64_t>(whole) % 4);
+    s.beatFromMusic = masterFromMusic_ ? 1 : 0;
+  }
   s.playing = transport_.playing() ? 1 : 0;
   s.activeGrains = gs.activeGrains;
   s.activeVoices = gs.activeVoices;

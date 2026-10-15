@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +52,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.autodj.app.design.AutoDjMotion
+import com.autodj.app.design.AutoDjType
+import com.autodj.app.design.Ds
+import com.autodj.app.design.Txt
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -125,6 +131,7 @@ fun Knob(
 ) {
     val currentValue by rememberUpdatedState(value)
     val currentOnChange by rememberUpdatedState(onValueChange)
+    val shown by animateFloatAsState(value, tween(AutoDjMotion.ms(AutoDjMotion.fast), easing = AutoDjMotion.out), label = "knob")
     val raw = remember { floatArrayOf(0f) }
     val dragRange = with(LocalDensity.current) { 180.dp.toPx() }
     val a11y = Modifier.semantics(mergeDescendants = true) {
@@ -170,20 +177,20 @@ fun Knob(
                 .pointerInput(onReset) { detectTapGestures(onDoubleTap = { onReset?.invoke() }) },
         ) {
             val r = this.size.minDimension / 2f
-            drawCircle(Palette.ink, radius = r)
-            val rad = Math.toRadians(knobAngleDegrees(value).toDouble())
+            drawCircle(Ds.c.ink, radius = r)
+            val rad = Math.toRadians(knobAngleDegrees(shown).toDouble())
             val dir = Offset(kotlin.math.sin(rad).toFloat(), -kotlin.math.cos(rad).toFloat())
             val c = center
             drawLine(
-                color = Palette.body.copy(alpha = 0.85f),
+                color = Ds.c.onInk,
                 start = c + dir * (r * 0.5f),
                 end = c + dir * (r * 0.86f),
-                strokeWidth = (r * 0.055f).coerceAtLeast(2f),
+                strokeWidth = (r * 0.07f).coerceAtLeast(2.5f),
                 cap = StrokeCap.Round,
             )
         }
-        Text(label, color = Palette.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-        Text(valueText, color = Palette.muted.copy(alpha = 0.9f), fontSize = 13.sp, textAlign = TextAlign.Center)
+        if (label.isNotEmpty()) Txt(label, style = AutoDjType.small, second = true, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+        if (valueText.isNotEmpty()) Txt(valueText, style = AutoDjType.small, textAlign = TextAlign.Center)
     }
 }
 

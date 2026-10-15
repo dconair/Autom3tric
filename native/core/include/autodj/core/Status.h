@@ -29,6 +29,9 @@ struct EngineStatus {
   std::int32_t qualityLevel = 0;     // 0 = full quality, 3 = most reduced (adaptive quality)
   std::int32_t callbackFrames = 0;
   std::int32_t sampleRate = 48000;
+  float beatPhase = 0.f;             // position inside the current beat of the master clock, 0..1
+  std::int32_t beatIndex = 0;        // beat inside the bar, 0..3 (0 = the downbeat)
+  std::int32_t beatFromMusic = 0;    // 1 when the clock follows a deck or the mix, 0 for the free-running clock
 };
 
 struct GrainVizItem {
