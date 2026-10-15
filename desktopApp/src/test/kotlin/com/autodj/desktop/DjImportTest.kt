@@ -132,6 +132,18 @@ class DjImportTest {
         assertEquals(0.0, minOf(a.gridOffsetSec % a.beatSec, a.beatSec - a.gridOffsetSec % a.beatSec), 0.02)
     }
 
+    /** The controller as DesktopHost builds it (default dispatchers, so Dispatchers.Main): imports must not stay queued. */
+    @Test fun importsFinishWithTheDefaultMainDispatcher() {
+        val f = File(dir, "House 124.wav")
+        writeSong(f, 124.0, 20.0)
+        val dj = DjController(engine, DesktopTrackDecoder(afconvert = null, ffmpeg = null), MemoryLibraryStore(), scope)
+        dj.importSources(listOf(f.path))
+        dj.addDemoTracks()
+        dj.awaitIdle()
+        assertTrue(dj.tracks.all { it.status == TrackStatus.Ready }, dj.tracks.map { it.name to it.status to it.error }.toString())
+        assertEquals(5, dj.tracks.size)
+    }
+
     @Test fun gridOffsetFollowsASongThatStartsLate() {
         val f = File(dir, "late.wav")
         writeSong(f, 120.0, 30.0, startOffsetSec = 0.23)

@@ -21,6 +21,8 @@ kotlin {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    // Dispatchers.Main on the desktop: the DJ controller and the host run their UI work there (without it every import stays queued)
+    implementation(libs.coroutines.swing)
     implementation(libs.org.json)
     // Java Sound providers for the formats the JDK cannot read: MP3, FLAC, Ogg Vorbis (macOS uses afconvert first)
     implementation(libs.mp3spi)

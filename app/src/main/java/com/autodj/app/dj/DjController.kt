@@ -85,7 +85,15 @@ class DjController(
         tracks.addAll(store.load())
         for (t in tracks) byId[t.id] = t
         scope.launch(io) {
-            for (id in queue) process(id)
+            for (id in queue) {
+                try {
+                    process(id)
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // one broken import must not stop the queue for the songs behind it
+                }
+            }
         }
     }
 
