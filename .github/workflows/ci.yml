@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The audio core is plain C++17: build it and run its tests on Linux (gcc) and macOS (Apple clang, arm64).
+  native:
+    name: native core (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.os == 'ubuntu-latest' && '-DAUTODJ_WERROR=ON' || '' }}
+      - name: Build
+        run: cmake --build build --parallel 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --parallel 3
+      - name: Short stress run
+        run: build/native/tools/stress_test --fuzz-seeds 30 --fuzz-callbacks 2000 --audio-seconds 30 --paced-seconds 15 --free-min-wall-seconds 5
+
+  # The macOS app: same instrument UI (Compose Multiplatform) on the same engine, CoreAudio output.
+  macos-app:
+    name: macOS app (dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test (JNI smoke test against the real dylib, offscreen UI render)
+        run: ./gradlew -PdesktopOnly=true :desktopApp:test --stacktrace
+      - name: Package
+        run: ./gradlew -PdesktopOnly=true :desktopApp:packageDmg :desktopApp:createDistributable --stacktrace
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp desktopApp/build/compose/binaries/main/dmg/*.dmg dist/
+          ditto -c -k --sequesterRsrc --keepParent desktopApp/build/compose/binaries/main/app/AutoDJ.app dist/AutoDJ-macos-app.zip
+          lipo -info desktopApp/build/native-resources/macos/libautodj_native.dylib
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoDJ-macOS
+          path: dist/*
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-screenshots
+          path: desktopApp/build/screenshots/*.png
+          if-no-files-found: ignore
+
+  # The same Kotlin stack (import, decoders, library, analysis through JNI) on Linux with a null audio driver.
+  desktop-linux:
+    name: desktop tests (Linux, no audio device)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Tools for the M4A decoder test
+        run: sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Test
+        run: ./gradlew -PdesktopOnly=true :desktopApp:test --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-linux-screenshots
+          path: desktopApp/build/screenshots/*.png
+          if-no-files-found: ignore
+
+  android:
+    name: Android (debug build + JVM tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-screenshots
+          path: app/build/screenshots/*.png
+          if-no-files-found: ignore

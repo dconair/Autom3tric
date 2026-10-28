@@ -1,0 +1,17 @@
+# build output
+/build*/
+/app/build/
+/desktopApp/build/
+/app/.cxx/
+.gradle/
+.cxx/
+*.iml
+.idea/
+local.properties
+*.apk
+*.aab
+# fetched dependencies / scratch
+/_deps/
+# rendered demos are published as release assets, not committed (docs/results holds the small text results)
+/demos/*.wav
+.kotlin/
